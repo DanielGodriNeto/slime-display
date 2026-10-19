@@ -1,0 +1,156 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Slime Display</title>
+<style>
+:root{--bg:#f4f4f2;--fg:#222;--card:#fff;--bd:#d6d6d0;--sel:#dbe8ff}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#eee;--card:#2a2a2d;--bd:#444;--sel:#26385c}}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif}
+.dev{width:480px;max-width:100%;margin:0 auto;background:#111;border-radius:14px;padding:10px;box-sizing:border-box}
+.scr{height:320px;position:relative;overflow:hidden;display:none}
+.top{display:flex;justify-content:space-between;padding:8px 12px;font-size:13px;letter-spacing:1px;height:32px;box-sizing:border-box}
+.pv{padding:2px 14px;height:184px}
+.tt{font-size:20px;font-weight:700;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.row{display:flex;gap:12px;align-items:center;height:66px}
+.sl{flex:none}
+.bounce{animation:b .5s steps(2) infinite}
+@keyframes b{50%{transform:translateY(-6px)}}
+.eq{display:flex;gap:3px;align-items:flex-end;height:56px;margin-top:4px}
+.eq i{flex:1;display:block;min-height:4px;border-radius:4px 4px 0 0}
+.bar,.bar div{height:10px;border-radius:6px}.bar{margin:8px 0 3px}
+.btns{display:flex;gap:8px;padding:4px 14px 0}
+.pb{flex:1;height:54px;border:0;border-radius:12px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:monospace;font-weight:700}
+.pb:active{transform:translateY(3px)}
+.ctl{display:flex;gap:8px;justify-content:center;margin:14px 0 0}
+#pxc{display:block;width:100%;image-rendering:pixelated}
+.app{max-width:520px;margin:18px auto 0;border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:var(--card)}
+.app .bar2{display:flex;justify-content:space-between;padding:6px 12px;background:var(--bg);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:10px 12px}
+.grid button{aspect-ratio:1;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:2px;cursor:pointer}
+.grid button.on{border:2px solid #3b8bff;background:var(--sel)}
+.grid img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated;display:block}
+.ft{padding:6px 12px 10px;font-size:12px;opacity:.75}
+</style></head><body>
+<div class="dev"><canvas id="pxc" width="480" height="320"></canvas><div class="scr" id="scr">
+<div class="top"><span id="brand"></span><span style="font-size:22px">21:47</span></div>
+<div class="pv">
+<div class="row"><img class="sl" id="sl" alt="">
+<div style="flex:1;min-width:0"><div class="tt" id="tt"></div><div id="ar" style="font-size:14px"></div></div></div>
+<div class="eq" id="eq"></div>
+<div class="bar" id="barbg"><div id="fill" style="transition:width .9s linear"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span id="el"></span><span id="rem"></span></div>
+</div>
+<div class="btns"><button class="pb" id="bp">|&lt;</button><button class="pb" id="bm" style="flex:1.4"></button><button class="pb" id="bn">&gt;|</button><button class="pb" id="bv">VOL</button></div>
+<div id="vol" style="padding:6px 14px 0;font-size:12px;letter-spacing:1px;text-align:right"></div>
+</div>
+<div class="ctl"><button id="stb"></button></div>
+<div class="app"><div class="bar2"><span>Slime Display - app do Windows (simulação)</span><span>COM3 conectado</span></div>
+<div class="grid" id="grid"></div><div class="ft" id="aft"></div></div>
+<script>
+var PL='e5579ab227ab29267a712a94fee4baed9479dc8888d25391e9d0ae2b2776e2ae95fabba36c66bd9789db726ccb778f9d784a503e34537185955e7089582e3293b5c149536a9fc5cfabd8df377ba62c89bb1467a738a4c138b2cf67e3f0c6b5f7c5874a7e4833f9a43fa26337cd3e42de7f35a52c5def571aecd658bd3d4436478ef1fb821f21286cd8a059bf928aba3c53a45394cb392a9076257c6bd8c358c1a559e0b15af0be74c4a599',AL='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&()*+,-/:;=?@[]^_{}~',SD=[
+'18|........000.......,......0055500.....,.....055554867....,....00555558867...,...0000556666550..,..00000006666000..,..002400077770420.,.0002200077770220.,.00032000007779370,000000023001937770,010000322222221007,011100222222223007,011111323339923117,.0111112333393110.,.0111111222931117.,..01111111111117..,...000111111100...,......0000000.....',
+'17|....44.....44....,....4.4....4.4...,...8444...4444...,...8b44...4444...,....b44...b44....,....bb4...b44....,.....b8.44b4.....,.....b88..44...a.,.....8.....e..aa.,....8c...84dc8a..,...84de48844a88ab,aa8844b48ade88aa.,.aa8444eccee888..,..a8b44e770e8a8..,.aaabbbb77ebbb8..,...8bbbbaabbb4...,....44bbbbbb4....,......444444.....',
+'17|..........hhh....,..ff.....mmhhh...,..hhf...hhhmhh.ff,..hggf..mmhhmffhh,.ggghhf.hhmffgggh,.ghhhgfiiiiihhhgg,.hhffffllnnlighhg,.giffiilllooligh.,.iiffiiillllliig.,fihhhiiiifffffff.,fiifjhiiifffhhhff,ggiffiiiiffhjiiff,gjiffkiiiffffiigg,.ggjfggkiikiifffg,.gjjjjjjkkgjjjgg.,..ffjjjjjjjjjjfg.,....ffffffffff...',
+'18|.......j....l.....,......mjj..ll.....,...m..mmjjfll.....,..llmmmmmjflll..jj,m.fflmmmmfffflmmjj,mmffllqqqqffffmmmj,mmmfflpttuuiiqmmmj,mmmqqpsttsuustqmm.,.mqppqqttssssssqm.,.qqp92qqqssss99qq.,.ppr22qqqpppp22rq.,pppqqqqqqppppqqqqq,prqppqr229rppqqqqq,prrrrqqqqppppqqrrq,prrrrrrrrrrrrrrrrq,.frrrrrrrrrrrrffl.,.ffqrrrrrrrrrrfffl,....qqqqqqqqqq.fff',
+'18|..........ll......,..ll......ll....22,..lll......l...2..,2...l.vvvv.l..2...,.2...l..44vl.2....,..2.vl...44vv2....,...vv......24v...9,2..v98.vvvv22.v.9.,.9.v92vvvvv22vv9..,..vv92vv...vvvvv..,..vvvvv.4894.vvv..,..vdvv.229844.vv..,..vddv.448844.vv..,..vddv.448844.vv..,...vdv..8444..v...,...vddv......vv...,....vvdv....vv....,......vvvvvv......',
+'16|..xx.xxx........,.xxxkxxxxk......,.xxkkkxxk4w.....,..xkxxkky44w....,.wwxxxxkyyyyw...,.wwkxxkyy24yyw..,w94wkkwwy99yyw..,w92wwwwww99wwww.,w92w99wwwwwwwwww,wwww9xwwwwwwywwy,.wwwwxwwwwwwwyyw,.wzzzwwwwwwwzzw.,.yzzwzzzzzzzzzw.,..ywzzzzzzzzzwww,....wwzzzzzzwzzw,......wwwwww.zz.,........zzzz....,.........zz.....',
+'18|........11........,.......121.11.....,......1221.121....,3.....3223.121....,33...32223.3221...,923..32223.3223..3,922.32233111323.32,.99233331111513222,..923333311111132.,...2333A333333A3..,...3333A333333A3..,...323333A1A1333..,...329933AAAA333..,....399222AA2223..,....39922222223...,.....3322222233...,.......333333.....',
+'18|........EEE.......,......EE000EE.....,....EE0y00000E....,...yA000y00yy0E...,..yAyyA00yy0000E..,.yA22AAAyAAAyyAy..,.y2..2AABAAAF92Ay.,yA2..2ABAAFF2..9y.,yAA22AABAAFF2..9Fy,yAAAAABAAAFFA22AFy,BCCAABA2229FAAAyyy,.BCCBA222339ABBCCB,.BCCBCC23339CBCCB.,..BCBCCCCCCCBBCCB.,...DCDCCCCCBCCDD..,....DDCCCDDCCDD...,......DDDDDDD.....',
+'18|.....tt...........,....tuut..........,....ttqttttt......,....tqqqqqtttt....,....tqqqqqqqttt...,....ttqqtuutqtt...,...tsppppptttqss..,...tsppppceqe2ps..,...sq2qe333cq29s..,..ss22eqc3cpqqps..,..ttqqqqppppqqps..,.tqttqqqppppqqpst.,tqrrttqqppppqqsrps,qrrrrrrtpppprrrrrp,.qqrrrrrrrrrrrrrqq,...qprrrrrrrrrpp..,.....qrrrrrqqq....,......qqqqq.......',
+'18|..e...........ee..,..ee........xeee..,.eeGx.....xGGewe..,.GxGx....xGGwwwG..,GxzGxxxxxGGwwwwG..,GzzxxzzyyGGxwwwGG.,9zxxzzzzyyzxxwwwG.,9zxGxGGGGHIccxwG..,99HIGGGGHIIHcccG..,9HIIGGGHHIIHHcc...,.HIIGGGHHIGeccc.e.,.9I9xxxxxxxecxc.ee,.xxIxIIxIxxxxxxceG,..xIIIIIIxxxxxkcGG,..xkIIeeIxxxxxkkGG,...xkIeekkkkxkkk2.,....xkkkkkkxkkk2..,......xxxxxkkk....',
+'18|.........u........,...t.....u.....u..,...tt...tuu...uu..,...qtt..tuu..uuu..,...qtttqtuuuttuu..,...qqttqttuueetusu,...qpsccttuu.deesu,...qpcccetud..decs,qtspccccedddddddc.,qqsccccceedddcu2c.,.qqecccu2eeeee99cc,..qeccc92eeeee99cc,...eGcc92eeecceecc,...eGGGceeGecG2ecc,....cGGGee99222ec.,....pGGGGGG112GGc.,...qqeGGGGGGGGGet.,...qqqeeeeeeeeett.',
+'18|..22.....rrr......,.2HH2...rrrGrrr...,2H..H2.rrGrGrGrr..,2H..H2.rGGGGGGrr..,.2HHJJqGGGtttGGr..,..22.KsGGKJJ.tGG..,....sKKGKKJJ..tG..,...sttJtssKKJ.Ks..,...sttJtsssstJKs..,..t2Jttts9Ksttsst.,..t22ttts99sttsst.,..s92ttts99sttsst.,..spqqqtssssttppt.,..tqp9pp9pqqqqqqs.,..Gtpp99ppqqqGGGGr,.rGtqqqqqqqGGGGrrr,.GGGttttttttGGGGG.',
+'18|......MMMMNN......,....NM......LL....,...NM.........L...,..N............L..,.NM....JJJJ....MN.,.M...JJKKKJJK...M.,L...JKKJKKKJKK..MN,M..KKKKKKKKKKKK..N,M..KONLKKKKKOLL..M,M.KKhNLKKKKKPLLK.M,M.KKKhOKKKKKKhOKMM,L.KOKKKhPOOPhKKKMN,LLKOOOOhNNNNhKKKM.,.LJKOOOOPNNPOOOKN.,..NJJOOOOOOOOKKL..,...MJJOOOOKJJJN...,.....MJJJJJJM.....',
+'18|..BB.B............,..BBBB.BB....B....,..BBBBBByBB.......,...ByyByyBBB.B....,...ByyyQEEEBBB.B..,B..ByQQ700EEEBBB..,BBBBQ77700EE0EByB.,BBByQFFF0000AEyyB.,BByQFFAAAAAAAAEyB.,BByyFFAAAAAAE2yyB.,.ByyAE2AAAAA22yyB.,.ByAA22AAAAAAAAyBB,..yCFFFFAAAAAAACyB,.BCCCFFFAAAAAACCCB,BCCCFFAAAAAAAAACCB,DCCCCCCAAAAACCCCD.,.DDCCCCCCCCCCCDD..,...DDDDDDDDDDD....',
+'18|.......EEEEE......,......HHHH..Q.....,....EHHHHHH..Q....,...EHHHHEEQQHHE...,..EEHHHEEEQQQQEE..,..EEHHEEEHHHEEEE..,.EEEHHEEHHEHHEEEE.,.E..HHEEHEEHHQQQQ.,ER..HHHEEEEH..QRRQ,ER..RHHHRRHH..RRRE,ERRRRgHHHHHR..RRRE,ERRRRgRHHgRRRRRRRE,ERRRRRgRRgRRRRRRE.,.ERRRRRggRRRRRRRQ.,..ERRRRRRRRRRRRQ..,...EERRRRRRRREE...,.....EEEEEEEE.....',
+'18|.ee..00.00...eeee.,ebe..10.10..eebbee,becc.1..1...ebbeac,beac.14414.ce5ebac,2e6c811b1b8855ccc9,5278aa1b1..a409669,.28aaabbbb..b4999.,028aaabbbbaab49779,2baaa66655aabba999,.b199666559915a99.,b17619556915015b..,5566665566555555..,5066675551555555..,5077661115500005..,.577770000000005..,..6777000000005...,...55000000055....,.....5555555......',
+'17|......EEHH.......,...JJEEEEEREE....,.QERJEERRQRR.....,.RRRRERRQRR......,..RRRRRggg.......,.EQQRgggOOOOO....,EERgggOOOKK..O...,ER.gOOOKKKKK..O..,...OOOOOKKKKKKKO.,...OOOOOOOOOO2.O.,..OOOO2.OOOOO92OO,..OOOO22OOOOO92OO,..OPOO22OOOOOOOOO,..OPPPOOOgOOgOOOO,..OPPPPPPPggPPPPO,...OPPPPPPPPPPPO.,....OOPPPPPPPPO..,......OOOOOOOO...',
+'18|.....hhhk.........,...khhhhkkk.......,..hkhhhkkxxk......,.hhkkhhkkkxk......,.hhkkhhkkkkk......,hhhhkhhkkkk.......,hhhhkkhxxkxxxx..x.,khhhhkxwwxzzzRxxw.,kkhhhhxwxxxzzzRxw.,hkkhhhhxxxxxxxxxx.,hhkkkhhxxxxxxxxxx.,.hhhkkxxxxzxxxxxzx,.hhhhhxxx22zxxxz2x,..hhhhxxx22xxxxx2x,...hhhxxxxxz2zz2xx,.....hhxxxzzz22zz.,........xzzzzzzz..',
+'18|..2...............,.2.2..............,22.29.ddssuu......,.....ddss..tuu....,22.ddstuu..stuu...,.2.dssuuuussuuuu..,..ddsuuuuNLLuuusu.,.ddsuuuuNNLuuuusu.,.ddsuuuNNNLuuusss.,.ddLLLNNNNLLNNLsss,edtNLLLRRRSSSNN29s,eeNNL99RRR22SS2Nss,eeMNS22SSSSS2SNNtt,eeMMSSSSSSS2SSNN.2,.eeMMSSSSSSS2NN...,..eeMMMSSS22NNtt.2,...eeeqMMMMMttt.2.,.....eeeeqqqq.....',
+'18|.......eeee.......,.....eeeeddee.....,..ddeeeecddddc....,.dccfeIlccdddde...,cccjfeIIcceeddc...,ccijffcccceeeecc..,eeimjficIceeIlee..,meiijfiijIIeIIef..,.ecimjiiiiffffijd.,.mcifmjjiiffffjmjd,.mccffmjjjjjjjmfje,.mmcefffmmmmjifjee,..mmeeefffffffeee.,..mmmmeeeeeeeeem..,..mmmmmmmeeeem....,...mmmmmmmmmm.....,...mmmmmmmm.......,....mmmm..........',
+'18|.......yyyy.......,.....yyTTEEyy.....,....yyyTTTTTTy....,....ykyyTTTTTyy...,...yykyyyyyykyy...,..4yyyyyyyyykyy...,.84yyyyyyyyyyyy44.,8.44yyyyyyyyyy44.4,8..444yyyyyy444..4,8...4444444444...4,.8..............4.,..TT4........4TT..,....TTTTTTTTTT....',
+'18|......aaaaU.......,.....aa888aUa.....,....aaww88aaww....,....aaazzaUzz8a...,...aaaaawwwwaaaa..,...aakkzwwwwzkka..,..aaaazkkwwwkzUUU.,.aaaaawwwwkkwwwwUU,aaaawwwwggggk..wUU,waaawg..ggggk..wUU,wwwawg..AAAgg.gwUw,.wwwzwg.AAAAggwzw.,..wwwzzggggggzzz..,...wwzzzzzzzzzz...,.....wzzzzzzz.....',
+'18|...ooo.......ooo..,.ooo.......oooo...,llo......llllo....,llo...iilllll.....,lll.ffflllll......,.lliffllllllo.....,.lllfllllllioo....,..llllllliiifo....,..jjffffiiiiffn...,.jhlffffiihlffn...,.jhhjiiiihhhffin..,.jjhjjiiihhfffiiii,jmjjjjjjjfffffjjff,jjmmjjjjjjjjjjjfff,.jjjmmjjjjjjjffff.,..jjjjjjjfffffff..,....jjjjjjjjff....',
+'18|.EEEEEE........k..,EEEEEEEEEE....k.k.,QQSSSSSEQQQQ.k...k,.QSSSSSSQQ..QQk.k.,.QRRSSRQEE..QQQk..,.QQRSSRQEEEEQxQQ..,.QQRESRQEEEEQkxQ..,.QQRSSRQEEEEQwkQE.,QQRRkwRREEEEQQRRE.,QQRRkkRRSEEEzRRREE,QRSSxkwwRRRzkzSSSE,QRSSwwwwwRwkkkSSSE,ES.wwwwwwwkzzkSSSE,EE.EwwwwSSkzzwSSE.,.....wwwSSzkkSSSE.,kE.EwwwwwwSSSSSE..,.k.SwwwwwSSSSSE...,..k.SSSSSSSSS.....',
+'18|..........m.......,.........m.m......,........m...m.....,...on..RSw.moo....,..oonnRwSEwonno...,..oonnRwESwonno...,..oollQwwSwllonn..,..olnnlQSwloolln..,..lnnnnnoooonnol..,..nmmnnnooommioo..,.nooimnnoommlooon.,.llonnnnoonnoolll.,llooomomoomoooolll,ooooolmommlooooonn,olffloooooooolffln,lfffllllllllllffil,.llllllllllllllll.,...oooooooooooo...',
+'18|..............J...,................JJ,......KKKK.JJJJJKK,.....K7766JJ111J..,....J0557766111K..,...K00557766111KJ.,..J00000667755KKJ.,..J00000667755K...,.J77..00777..07K..,.J77..00777..07KJJ,J0007777770000111K,J00076.676.500111K,J0000.......dd111J,J0000.......ddttJJ,.J0000.....dttdJ..,..J000dd00ddttJ...,...JJd00ddttJJ....,.....JJJJJJJ......',
+'18|...h.h..bbbbb.....,..h...bb55555bb..4,...h.b665555666a..,...qb5hhh555aaa84.,..puq5665hbbaa884.,..puq56abbbb8hhh44,.ppuqbaabb118888h4,puuuqbaab100aa8844,puupbbaab177aaaab4,.pppqqaab1166666bb,...quuqqp6556666b.,...ququup6bba66.b.,.qqquqquqbbbaa6.hh,.quuuqquqbbJK.....,.quuquuuqJJJKKh.hh,..qqquuqJJJJ..h.h.,44...qq........h..,44................',
+'18|.......ggKgg......,.....ggIIKIIg.....,....gIIIKKIIKK....,...gIIIIdKIIKIg...,..gIIIIddIIIdIIg..,.gII..ddIIIdd..IK.,.gdd...IIIddI..IK.,gddII...IIdI...IKg,1dIIIIIIIIdIIIIIKg,1I..IIIIIIdIIII.dd,1II.II..IId...I.Id,.hI......I......Ih,.h11........II.Ih.,..h11..II..d1IIh..,...hh111IIII11h...,.....hh1hhhhh.....'];
+var NM=['Pink','Cotton','Tabby','Rock','Phosphor','Honey','Batty','Boom','Puddle','Hunter','Crystal','Angler','Rad','Fire','Quantum','Flutter','Tangle','Ringtail','Mosaic','Dervish','Yolky','Saber','Quicksilver','Gold','Lucky','Glitch','Twinkle','Tarr'];
+var PAL={};for(var n=0;n<PL.length/6;n++)PAL[AL[n]]='#'+PL.substr(n*6,6);
+function ol(c){var o=document.createElement('canvas');o.width=c.width+2;o.height=c.height+2;var x=o.getContext('2d');x.drawImage(c,1,1);var s=x.getImageData(0,0,o.width,o.height),d=s.data,w=o.width,h=o.height,a=new Uint8Array(w*h);
+for(var i=0;i<w*h;i++)a[i]=d[i*4+3]>0?1:0;
+for(var y=0;y<h;y++)for(var xx=0;xx<w;xx++){var i=y*w+xx;if(a[i])continue;if((xx>0&&a[i-1])||(xx<w-1&&a[i+1])||(y>0&&a[i-w])||(y<h-1&&a[i+w])){d[i*4]=d[i*4+1]=d[i*4+2]=255;d[i*4+3]=255}}
+x.putImageData(s,0,0);return o}
+function soft(c){var s=3,b=document.createElement('canvas');b.width=c.width*s;b.height=c.height*s;var x=b.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(c,0,0,b.width,b.height);
+var o=document.createElement('canvas');o.width=b.width;o.height=b.height;var y=o.getContext('2d');y.filter='blur(2px)';y.drawImage(b,0,0);y.filter='none';
+var d=y.getImageData(0,0,o.width,o.height);for(var i=3;i<d.data.length;i+=4)d.data[i]=Math.min(255,d.data[i]*2);y.putImageData(d,0,0);return o}
+function hsl(h,s,l){return 'hsl('+Math.round(h)+','+Math.round(s)+'%,'+Math.round(l)+'%)'}
+function rgb2h(r,g,b){r/=255;g/=255;b/=255;var M=Math.max(r,g,b),m=Math.min(r,g,b),d=M-m,h=0,l=(M+m)/2,s=d?d/(1-Math.abs(2*l-1)):0;
+if(d){if(M==r)h=((g-b)/d+6)%6;else if(M==g)h=(b-r)/d+2;else h=(r-g)/d+4}return [h*60,s,l]}
+function T(H,sb,sp,sa,st,lb,lp,la,lt){return {bg:hsl(H,sb,lb),pn:hsl(H,sp,lp),ac:hsl(H,sa,la),tx:hsl(H,st,lt)}}
+function mk(s){var p=s.split('|'),w=+p[0],rows=p[1].split(',');var cv=document.createElement('canvas');cv.width=w;cv.height=rows.length;var x=cv.getContext('2d'),cnt={};
+rows.forEach(function(r,y){for(var i=0;i<w;i++){var ch=r[i];if(ch&&ch!='.'&&PAL[ch]){x.fillStyle=PAL[ch];x.fillRect(i,y,1,1);cnt[ch]=(cnt[ch]||0)+1}}});
+var best=null,bs=-1;for(var ch in cnt){var c=PAL[ch],hh=rgb2h(parseInt(c.substr(1,2),16),parseInt(c.substr(3,2),16),parseInt(c.substr(5,2),16)),sc=cnt[ch]*(hh[1]>.3&&hh[2]>.3&&hh[2]<.85?3:1)*hh[1];if(sc>bs){bs=sc;best=hh}}
+return {x:ol(cv),th:T(best[0],35,32,80,70,11,20,68,93)}}
+var SP=SD.map(mk);
+SP[2].th=T(215,6,5,8,8,11,20,66,93);SP[22].th=T(210,8,8,12,10,12,22,78,95);SP[24].th=T(190,10,10,25,25,14,24,88,97);
+var TW=26,twh=0;
+var SPX=SP.map(function(o){return o.x}),SPS=SPX.map(soft);
+var F={'A':[14,17,17,31,17,17,17],'B':[30,17,17,30,17,17,30],'C':[14,17,16,16,16,17,14],'D':[30,17,17,17,17,17,30],'E':[31,16,16,30,16,16,31],'F':[31,16,16,30,16,16,16],'G':[14,17,16,23,17,17,15],'H':[17,17,17,31,17,17,17],'I':[14,4,4,4,4,4,14],'J':[7,2,2,2,2,18,12],'K':[17,18,20,24,20,18,17],'L':[16,16,16,16,16,16,31],'M':[17,27,21,21,17,17,17],'N':[17,25,21,19,17,17,17],'O':[14,17,17,17,17,17,14],'P':[30,17,17,30,16,16,16],'Q':[14,17,17,17,21,18,13],'R':[30,17,17,30,20,18,17],'S':[15,16,16,14,1,1,30],'T':[31,4,4,4,4,4,4],'U':[17,17,17,17,17,17,14],'V':[17,17,17,17,17,10,4],'W':[17,17,17,21,21,27,17],'X':[17,17,10,4,10,17,17],'Y':[17,17,10,4,4,4,4],'Z':[31,1,2,4,8,16,31],'0':[14,17,19,21,25,17,14],'1':[4,12,4,4,4,4,14],'2':[14,17,1,2,4,8,31],'3':[30,1,1,14,1,1,30],'4':[2,6,10,18,31,2,2],'5':[31,16,30,1,1,17,14],'6':[6,8,16,30,17,17,14],'7':[31,1,2,4,8,8,8],'8':[14,17,17,14,17,17,14],'9':[14,17,17,15,1,2,12],'-':[0,0,0,31,0,0,0],':':[0,4,0,0,0,4,0],'.':[0,0,0,0,0,12,12],'#':[10,10,31,10,31,10,10],' ':[0,0,0,0,0,0,0]};
+var IC={prev:['#.......#','#......##','#.....###','#....####','#...#####','#....####','#.....###','#......##','#.......#'],play:['##......','####....','######..','########','######..','####....','##......'],pause:['###..###','###..###','###..###','###..###','###..###','###..###','###..###'],vol:['....#......','...##..#...','#####...#..','#####.#.#..','#####.#.#..','#####.#.#..','#####...#..','...##..#...','....#......']};
+IC.next=IC.prev.map(function(r){return r.split('').reverse().join('')});
+var ST='px',pxc=document.getElementById('pxc'),cx=pxc.getContext('2d'),pr='',prt=0,eqv=[];
+var S=[['Pink Bomb','Slime Rancher OST',204],['Rancho ao Entardecer','Beatrix LeBeau',187],['Cavernas Brilhantes','Ambient Slimes',231]];
+var i=0,t=0,play=true,vol=6,NB=24,si=0,N=SD.length,k=SP[0].th;
+var $=function(id){return document.getElementById(id)};
+function f(s){return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}
+var eqh='';for(var q=0;q<NB;q++)eqh+='<i></i>';$('eq').innerHTML=eqh;var bars=$('eq').children;
+var gh='';for(var g=0;g<N;g++)gh+='<button data-s="'+g+'" title="'+NM[g]+'"><img src="'+SPX[g].toDataURL()+'" alt="'+NM[g]+'"></button>';$('grid').innerHTML=gh;
+document.querySelectorAll('#grid button').forEach(function(b){b.onclick=function(){si=+b.dataset.s;ui()}});
+function ui(){k=SP[si].th;var px=ST=='px';$('scr').style.display=px?'none':'block';pxc.style.display=px?'block':'none';
+$('sl').src=SPS[si].toDataURL();$('sl').style.width=(SPS[si].width*84/78)+'px';
+col();ui2()}
+function col(){$('scr').style.background=k.bg;$('scr').style.color=k.tx;$('barbg').style.background=k.pn;$('fill').style.background=k.ac;$('ar').style.color=k.ac;$('vol').style.color=k.ac;
+for(var j=0;j<NB;j++)bars[j].style.background=j%2?k.ac:k.tx;
+document.querySelectorAll('.pb').forEach(function(b){b.style.background=k.pn;b.style.color=k.ac;b.style.boxShadow='0 0 0 2px '+k.ac});
+}
+function ui2(){document.querySelectorAll('#grid button').forEach(function(b,n){b.classList.toggle('on',n==si)});
+$('aft').textContent='Selecionado: '+NM[si]+' ('+(si+1)+'/'+N+'). O app manda SLIME '+si+' pela USB; a placa troca nome, cores e ícone.';st()}
+function st(){var s=S[i];$('brand').textContent=NM[si].toUpperCase()+' FM';
+$('tt').textContent=s[0];$('ar').textContent=s[1];$('el').textContent=f(t);$('rem').textContent='-'+f(s[2]-t);$('fill').style.width=(t/s[2]*100)+'%';
+$('bm').textContent=play?'||':'>';$('sl').classList.toggle('bounce',play);
+$('vol').textContent='VOL '+'#'.repeat(vol)+'-'.repeat(10-vol);
+$('stb').textContent='Estilo: '+(ST=='px'?'Pixel (clique p/ Suave)':'Suave (clique p/ Pixel)')}
+function go(d){i=(i+d+S.length)%S.length;t=0;st()}
+$('bp').onclick=function(){if(t>3)t=0;else go(-1);st()};
+$('bn').onclick=function(){go(1)};
+$('bm').onclick=function(){play=!play;st()};
+$('bv').onclick=function(){vol=vol>=10?2:vol+2;st()};
+$('stb').onclick=function(){ST=ST=='px'?'sm':'px';ui()};
+var BT=[{id:'bp',x:14,w:97},{id:'bm',x:119,w:136},{id:'bn',x:263,w:97},{id:'bv',x:368,w:97}];
+pxc.onclick=function(e){var r=pxc.getBoundingClientRect(),X=(e.clientX-r.left)*480/r.width,Y=(e.clientY-r.top)*320/r.height;
+BT.forEach(function(b){if(X>=b.x&&X<b.x+b.w&&Y>=220&&Y<274){pr=b.id;prt=Date.now();$(b.id).onclick()}})};
+setInterval(function(){if(!play)return;t++;if(t>=S[i][2])go(1);else st()},1000);
+var ph=0;setInterval(function(){ph+=.5;for(var j=0;j<NB;j++){var v=play?(.35+.35*Math.sin(ph+j*.7)+.3*Math.random())*(vol/10+.3):0;eqv[j]=Math.max(0,Math.min(1,v));bars[j].style.height=Math.max(4,Math.min(56,v*56))+'px'}},120);
+function up(s){return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase()}
+function tw(s,sc){return up(s).length*12*sc-2*sc}
+function txt(s,x,y,sc,col){cx.fillStyle=col;s=up(s);var d=2*sc;for(var n=0;n<s.length;n++){var g=F[s[n]]||F[' '];for(var r=0;r<7;r++)for(var c=0;c<5;c++)if(g[r]>>(4-c)&1)cx.fillRect(x+(n*6+c)*d,y+r*d,d,d)}}
+function icon(m,cxm,cym,col,dd){cx.fillStyle=col;var w=m[0].length*dd,h=m.length*dd,x0=Math.round((cxm-w/2)/2)*2,y0=Math.round((cym-h/2)/2)*2;m.forEach(function(r,y){for(var x=0;x<r.length;x++)if(r[x]=='#')cx.fillRect(x0+x*dd,y0+y*dd,dd,dd)})}
+function pbtn(b,ic){var press=pr==b.id&&Date.now()-prt<160,y=220+(press?4:0),x=b.x,w=b.w,h=54;
+cx.fillStyle='#00000066';cx.fillRect(x,220+h-2,w,6);
+cx.fillStyle=k.ac;cx.fillRect(x+4,y,w-8,h);cx.fillRect(x,y+4,w,h-8);
+cx.fillStyle=k.pn;cx.fillRect(x+6,y+4,w-12,h-8);cx.fillRect(x+4,y+6,w-8,h-12);
+cx.fillStyle='#ffffff22';cx.fillRect(x+8,y+6,w-16,2);
+icon(IC[ic],x+w/2,y+h/2,k.ac,4)}
+function pxFrame(){var s=S[i];cx.imageSmoothingEnabled=false;cx.fillStyle=k.bg;cx.fillRect(0,0,480,320);
+txt(NM[si]+' FM',12,10,1,k.ac);txt('21:47',480-12-tw('21:47',2),2,2,k.tx);
+var c=SPX[si],bob=play&&Math.floor(Date.now()/250)%2?-4:0;cx.drawImage(c,14,38+bob,c.width*3,c.height*3);
+cx.save();cx.beginPath();cx.rect(106,40,360,30);cx.clip();var ttw=tw(s[0],2),off=ttw>360?(Math.floor(Date.now()/60)%(ttw+60)):0;txt(s[0],106-off,42,2,k.tx);if(off)txt(s[0],106-off+ttw+60,42,2,k.tx);cx.restore();
+txt(s[1],106,78,1,k.ac);
+for(var j=0;j<NB;j++){var h=Math.round((eqv[j]||0)*68/6)*6;if(h<6)h=6;cx.fillStyle=j%2?k.ac:k.tx;cx.fillRect(24+j*18,176-h,14,h);cx.fillStyle='#ffffff30';cx.fillRect(24+j*18,176-h,14,2)}
+cx.fillStyle=k.ac;cx.fillRect(14,184,452,8);cx.fillStyle=k.pn;cx.fillRect(16,186,448,4);cx.fillStyle=k.ac;cx.fillRect(16,186,Math.round(448*t/s[2]/2)*2,4);
+txt(f(t),14,198,1,k.tx);var r='-'+f(s[2]-t);txt(r,466-tw(r,1),198,1,k.tx);
+pbtn(BT[0],'prev');pbtn(BT[1],play?'pause':'play');pbtn(BT[2],'next');pbtn(BT[3],'vol');
+var vt='VOL '+'#'.repeat(vol)+'-'.repeat(10-vol);txt(vt,466-tw(vt,1),284,1,k.ac)}
+function tick(){if(ST=='px')pxFrame();requestAnimationFrame(tick)}
+setInterval(function(){if(si!=TW)return;twh=(twh+4)%360;k=SP[TW].th=T(twh,40,36,85,75,12,22,70,94);col()},100);
+ui();tick();
+</script></body></html>

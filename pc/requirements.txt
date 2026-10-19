@@ -1,0 +1,12 @@
+﻿pyserial
+SoundCard
+numpy
+pillow
+pycaw
+winrt-runtime
+winrt-Windows.Media.Control
+winrt-Windows.Foundation
+winrt-Windows.Foundation.Collections
+psutil
+pystray
+tkinterdnd2

@@ -1,0 +1,254 @@
+[
+ {
+  "name": "Pink",
+  "theme": [
+   "#26121b",
+   "#432332",
+   "#ef6caa",
+   "#fae1ec"
+  ]
+ },
+ {
+  "name": "Cotton",
+  "theme": [
+   "#261812",
+   "#432c23",
+   "#ef906c",
+   "#fae8e1"
+  ]
+ },
+ {
+  "name": "Tabby",
+  "theme": [
+   "#1a1c1e",
+   "#303336",
+   "#a1a7af",
+   "#ecedef"
+  ]
+ },
+ {
+  "name": "Rock",
+  "theme": [
+   "#121d26",
+   "#233543",
+   "#6cb6ef",
+   "#e1effa"
+  ]
+ },
+ {
+  "name": "Phosphor",
+  "theme": [
+   "#171226",
+   "#2b2343",
+   "#8e6cef",
+   "#e7e1fa"
+  ]
+ },
+ {
+  "name": "Honey",
+  "theme": [
+   "#261c12",
+   "#433323",
+   "#efad6c",
+   "#faede1"
+  ]
+ },
+ {
+  "name": "Batty",
+  "theme": [
+   "#1f1226",
+   "#392343",
+   "#c46cef",
+   "#f1e1fa"
+  ]
+ },
+ {
+  "name": "Boom",
+  "theme": [
+   "#261213",
+   "#432324",
+   "#ef6c70",
+   "#fae1e1"
+  ]
+ },
+ {
+  "name": "Puddle",
+  "theme": [
+   "#121f26",
+   "#233843",
+   "#6cc1ef",
+   "#e1f1fa"
+  ]
+ },
+ {
+  "name": "Hunter",
+  "theme": [
+   "#261812",
+   "#432c23",
+   "#ef916c",
+   "#fae8e1"
+  ]
+ },
+ {
+  "name": "Crystal",
+  "theme": [
+   "#122426",
+   "#234043",
+   "#6ce2ef",
+   "#e1f7fa"
+  ]
+ },
+ {
+  "name": "Angler",
+  "theme": [
+   "#122226",
+   "#233d43",
+   "#6cd6ef",
+   "#e1f5fa"
+  ]
+ },
+ {
+  "name": "Rad",
+  "theme": [
+   "#12261d",
+   "#234335",
+   "#6cefb5",
+   "#e1faef"
+  ]
+ },
+ {
+  "name": "Fire",
+  "theme": [
+   "#261b12",
+   "#433123",
+   "#efa56c",
+   "#faece1"
+  ]
+ },
+ {
+  "name": "Quantum",
+  "theme": [
+   "#262312",
+   "#433e23",
+   "#efdb6c",
+   "#faf6e1"
+  ]
+ },
+ {
+  "name": "Flutter",
+  "theme": [
+   "#261712",
+   "#432a23",
+   "#ef8b6c",
+   "#fae6e1"
+  ]
+ },
+ {
+  "name": "Tangle",
+  "theme": [
+   "#122621",
+   "#23433b",
+   "#6cefcd",
+   "#e1faf3"
+  ]
+ },
+ {
+  "name": "Ringtail",
+  "theme": [
+   "#261812",
+   "#432c23",
+   "#ef916c",
+   "#fae8e1"
+  ]
+ },
+ {
+  "name": "Mosaic",
+  "theme": [
+   "#122426",
+   "#234043",
+   "#6ce2ef",
+   "#e1f7fa"
+  ]
+ },
+ {
+  "name": "Dervish",
+  "theme": [
+   "#131226",
+   "#252343",
+   "#746cef",
+   "#e2e1fa"
+  ]
+ },
+ {
+  "name": "Yolky",
+  "theme": [
+   "#261d12",
+   "#433423",
+   "#efb36c",
+   "#faeee1"
+  ]
+ },
+ {
+  "name": "Saber",
+  "theme": [
+   "#261912",
+   "#432d23",
+   "#ef976c",
+   "#fae9e1"
+  ]
+ },
+ {
+  "name": "Quicksilver",
+  "theme": [
+   "#1c1f21",
+   "#34383d",
+   "#c0c7ce",
+   "#f1f2f4"
+  ]
+ },
+ {
+  "name": "Gold",
+  "theme": [
+   "#262312",
+   "#433e23",
+   "#efdb6c",
+   "#faf6e1"
+  ]
+ },
+ {
+  "name": "Lucky",
+  "theme": [
+   "#202627",
+   "#374143",
+   "#d9e5e8",
+   "#f5f9f9"
+  ]
+ },
+ {
+  "name": "Glitch",
+  "theme": [
+   "#26121b",
+   "#432332",
+   "#ef6caa",
+   "#fae1ec"
+  ]
+ },
+ {
+  "name": "Twinkle",
+  "theme": [
+   "#261812",
+   "#432c23",
+   "#ef906c",
+   "#fae8e1"
+  ]
+ },
+ {
+  "name": "Tarr",
+  "theme": [
+   "#161226",
+   "#282343",
+   "#826cef",
+   "#e5e1fa"
+  ]
+ }
+]
