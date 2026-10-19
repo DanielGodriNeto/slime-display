@@ -1,6 +1,7 @@
 """Configuração do app: slime, porta, layout da tela, ações dos botões, importar/exportar. Sem interface gráfica."""
 import json
 import os
+import re
 import unicodedata
 from pathlib import Path
 
@@ -12,7 +13,7 @@ ACTION_TYPES = ('none', 'launch', 'url', 'folder', 'hotkey', 'text', 'macro', 'm
 STEP_TYPES = ('hotkey', 'text', 'wait', 'launch', 'url', 'media')
 MEDIA_CMDS = ('play', 'next', 'prev', 'stop', 'vol_up', 'vol_down', 'mute')
 POWER_CMDS = ('lock', 'sleep', 'restart', 'shutdown')
-RISKY = ('launch', 'macro', 'power', 'text', 'hotkey')
+RISKY = ('launch', 'macro', 'power', 'text', 'hotkey', 'folder', 'url')
 MAX_STR = 500
 MAX_STEPS = 50
 
@@ -154,5 +155,5 @@ def _describe_step(step):
 
 def risky_actions(cfg):
     """Lista legível das ações que mexem no PC, para o usuário aprovar ao importar."""
-    return [f'{el["label"] or "(sem nome)"} → {describe(el["action"])}'
+    return [re.sub(r'[\x00-\x1f\x7f]', '·', f'{el["label"] or "(sem nome)"} → {describe(el["action"])}')
             for el in cfg['layout'] if el['type'] == 'action' and el['action']['type'] in RISKY]
