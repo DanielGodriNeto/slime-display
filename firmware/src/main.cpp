@@ -153,11 +153,11 @@ void txt(TFT_eSPI& g, const String& s, int x, int y, int sc, uint16_t col) {
   }
 }
 
-void icon(const char* const* m, int rows, int cols, int cx, int cy, uint16_t col, bool mirror = false) {
+void icon(TFT_eSPI& g, const char* const* m, int rows, int cols, int cx, int cy, uint16_t col, bool mirror = false) {
   int x0 = ((cx - cols * 4 / 2) / 2) * 2, y0 = ((cy - rows * 4 / 2) / 2) * 2;
   for (int y = 0; y < rows; y++)
     for (int x = 0; x < cols; x++)
-      if (m[y][mirror ? cols - 1 - x : x] == '#') tft.fillRect(x0 + x * 4, y0 + y * 4, 4, 4, col);
+      if (m[y][mirror ? cols - 1 - x : x] == '#') g.fillRect(x0 + x * 4, y0 + y * 4, 4, 4, col);
 }
 
 El* find(char t) {
@@ -269,33 +269,45 @@ void drawProg() {
   }
 }
 
-void drawBtn(int i) {
+// desenha o botão i em `g` com o canto do botão em (ox, oy)
+void drawBtnOn(TFT_eSPI& g, int i, int ox, int oy) {
   const El& b = els[i];
   bool press = pressed == i && millis() - pressedAt < 160;
   uint16_t A = ACC(b), M = MAIN(b);
-  int y = b.y + (press ? 4 : 0), x = b.x, w = b.w, h = b.h - 8;  // 8 px reservados para sombra e afundar
-  tft.fillRect(x, b.y, w, b.h, K[0]);
-  tft.fillRect(x, b.y + h, w, 6, mix(K[0], 0, 120));
-  tft.fillRect(x + 4, y, w - 8, h, A);
-  tft.fillRect(x, y + 4, w, h - 8, A);
-  tft.fillRect(x + 6, y + 4, w - 12, h - 8, K[1]);
-  tft.fillRect(x + 4, y + 6, w - 8, h - 12, K[1]);
-  tft.fillRect(x + 8, y + 6, w - 16, 2, mix(K[1], 0xFFFF, 40));
+  int y = oy + (press ? 4 : 0), x = ox, w = b.w, h = b.h - 8;  // 8 px reservados para sombra e afundar
+  g.fillRect(x, oy, w, b.h, K[0]);
+  g.fillRect(x, oy + h, w, 6, mix(K[0], 0, 120));
+  g.fillRect(x + 4, y, w - 8, h, A);
+  g.fillRect(x, y + 4, w, h - 8, A);
+  g.fillRect(x + 6, y + 4, w - 12, h - 8, K[1]);
+  g.fillRect(x + 4, y + 6, w - 8, h - 12, K[1]);
+  g.fillRect(x + 8, y + 6, w - 16, 2, mix(K[1], 0xFFFF, 40));
   int cx = x + w / 2, cy = y + h / 2;
   if (b.t == 'a') {
     String lb = clean(b.label);
     lb = lb.substring(0, max(0, (w - 10) / 12));
     int sc = max(1, (h - 12 - (lb.length() ? 16 : 0)) / ICON);
-    int ox = cx - ICON * sc / 2, oy = cy - (lb.length() ? 8 : 0) - ICON * sc / 2;
+    int sx = cx - ICON * sc / 2, sy = cy - (lb.length() ? 8 : 0) - ICON * sc / 2;
     if (b.hasPix) {
       for (int i = 0; i < ICON * ICON; i++)
-        if (b.pix[i / 8] >> (i % 8) & 1) tft.fillRect(ox + i % ICON * sc, oy + i / ICON * sc, sc, sc, A);
-    } else drawSprite(tft, min<int>(b.b, N_SLIMES - 1), ox, oy, sc);
-    if (lb.length()) txt(tft, lb, cx - textW(lb, 1) / 2, y + h - 18, 1, M);
-  } else if (b.a == 0) icon(IC_PREV, 9, 9, cx, cy, A);
-  else if (b.a == 2) icon(IC_PREV, 9, 9, cx, cy, A, true);
-  else if (b.a == 1) { if (playing) icon(IC_PAUSE, 7, 8, cx, cy, A); else icon(IC_PLAY, 7, 8, cx, cy, A); }
-  else icon(IC_VOL, 9, 11, cx, cy, A);
+        if (b.pix[i / 8] >> (i % 8) & 1) g.fillRect(sx + i % ICON * sc, sy + i / ICON * sc, sc, sc, A);
+    } else drawSprite(g, min<int>(b.b, N_SLIMES - 1), sx, sy, sc);
+    if (lb.length()) txt(g, lb, cx - textW(lb, 1) / 2, y + h - 18, 1, M);
+  } else if (b.a == 0) icon(g, IC_PREV, 9, 9, cx, cy, A);
+  else if (b.a == 2) icon(g, IC_PREV, 9, 9, cx, cy, A, true);
+  else if (b.a == 1) { if (playing) icon(g, IC_PAUSE, 7, 8, cx, cy, A); else icon(g, IC_PLAY, 7, 8, cx, cy, A); }
+  else icon(g, IC_VOL, 9, 11, cx, cy, A);
+}
+
+// monta o botão fora da tela e envia de uma vez, sem piscar
+void drawBtn(int i) {
+  const El& b = els[i];
+  TFT_eSprite sp(&tft);
+  if (sp.createSprite(b.w, b.h)) {
+    drawBtnOn(sp, i, 0, 0);
+    sp.pushSprite(b.x, b.y);
+    sp.deleteSprite();
+  } else drawBtnOn(tft, i, b.x, b.y);
 }
 
 void drawVol() {
