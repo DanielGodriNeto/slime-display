@@ -45,9 +45,12 @@ enum { W = 480, H = 320, NB = 24 };
 TFT_eSPI tft;
 // ---- luz de fundo: PWM com transição lenta; apaga sozinha se o PC parar de falar (dormiu, hibernou, app fechado) ----
 #define SLEEP_AFTER_MS 20000
-uint8_t blGoal = 160, blNow = 255;
+uint8_t blGoal = 160, blNow = 0;  // nasce apagada: só acende depois que o PC fala ou que alguém toca
 uint32_t lastRx = 0, lastTouch = 0;
-bool screenOff() { return millis() - max(lastRx, lastTouch) > SLEEP_AFTER_MS; }
+bool screenOff() {
+  uint32_t t = max(lastRx, lastTouch);
+  return t == 0 || millis() - t > SLEEP_AFTER_MS;
+}
 
 void updateBacklight() {
   static uint32_t last = 0;
@@ -550,7 +553,7 @@ void setup() {
   slime = min<int>(prefs.getUChar("slime", 0), N_SLIMES - 1);
   tft.init();
   ledcAttach(TFT_BL, 5000, 8);
-  lastRx = millis();
+  ledcWrite(TFT_BL, 0);
   tft.setRotation(1);
   colorTest();
   tp.begin();
