@@ -2,6 +2,13 @@
 
 Display de música estilo Slime Rancher para a CYD ESP32-3248S035C (3.5", 480×320). O app do Windows escolhe o slime (28 temas) e manda música, equalizador, volume e hora pela USB, e a tela é **uma só, toda montada por você**: slime, nome da música, tempo, relógio, botões... o que não quiser, você tira.
 
+## Instalar em outro PC (o jeito fácil)
+A placa guarda o firmware na própria memória: se ela já foi gravada, basta ligá-la na USB de outro PC. Nada de compilar.
+1. Copie esta pasta inteira para o PC (pode ser o zip do GitHub: Code > Download ZIP).
+2. Dê duplo clique em `instalar.bat`. Ele instala o Python se faltar (precisa de internet), as bibliotecas e cria o atalho **Slime Display** na Área de Trabalho. Se pedir, feche e rode de novo.
+3. Ligue a placa na USB e abra o atalho. A porta é achada sozinha (driver CH340; o Windows 11 costuma instalar sozinho, senão procure "CH340 driver").
+Slime e tela escolhidos ficam no PC em `%APPDATA%\slime-display`, então o outro PC começa com a tela padrão.
+
 ## Placa (firmware)
 1. Instale o PlatformIO (extensão do VS Code ou `pip install platformio`).
 2. `cd firmware` e `pio run -t upload` (placa na USB). Monitor serial: `pio device monitor`.
