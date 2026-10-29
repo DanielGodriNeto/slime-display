@@ -168,11 +168,19 @@ void drawStaticTexts() {
 }
 
 void drawClock() {
-  String c = clockTxt;
   for (int i = 0; i < nEl; i++)
     if (els[i].t == 'c') {
-      tft.fillRect(els[i].x, els[i].y, textW("00:00", els[i].a), 14 * els[i].a, K[0]);
-      txt(tft, c, els[i].x, els[i].y, els[i].a, MAIN(els[i]));
+      int w = textW("00:00", els[i].a), h = 14 * els[i].a;
+      TFT_eSprite s(&tft);
+      if (s.createSprite(w, h)) {
+        s.fillSprite(K[0]);
+        txt(s, clockTxt, 0, 0, els[i].a, MAIN(els[i]));
+        s.pushSprite(els[i].x, els[i].y);
+        s.deleteSprite();
+      } else {
+        tft.fillRect(els[i].x, els[i].y, w, h, K[0]);
+        txt(tft, clockTxt, els[i].x, els[i].y, els[i].a, MAIN(els[i]));
+      }
     }
 }
 
@@ -231,16 +239,30 @@ void drawEq() {
 
 String mmss(uint32_t s) { char b[10]; snprintf(b, sizeof b, "%u:%02u", (unsigned)(s / 60), (unsigned)(s % 60)); return b; }
 
+// monta a barra e os tempos fora da tela e envia de uma vez (sem piscar)
+void drawProgOn(TFT_eSPI& g, int x, int y, int w) {
+  g.fillRect(x, y, w, 8, ACC(*find('p')));
+  g.fillRect(x + 2, y + 2, w - 4, 4, K[1]);
+  El* e = find('p');
+  if (dur) g.fillRect(x + 2, y + 2, ((int)((w - 4) * (uint64_t)min(pos, dur) / dur) / 2) * 2, 4, ACC(*e));
+  g.fillRect(x, y + 14, w, 14, K[0]);
+  txt(g, mmss(pos), x, y + 14, 1, MAIN(*e));
+  String r = dur ? mmss(dur) : "";
+  txt(g, r, x + w - textW(r, 1), y + 14, 1, MAIN(*e));
+}
+
 void drawProg() {
   El* e = find('p');
   if (!e) return;
-  tft.fillRect(e->x, e->y, e->w, 8, ACC(*e));
-  tft.fillRect(e->x + 2, e->y + 2, e->w - 4, 4, K[1]);
-  if (dur) tft.fillRect(e->x + 2, e->y + 2, ((int)((e->w - 4) * (uint64_t)min(pos, dur) / dur) / 2) * 2, 4, ACC(*e));
-  tft.fillRect(e->x, e->y + 14, e->w, 14, K[0]);
-  txt(tft, mmss(pos), e->x, e->y + 14, 1, MAIN(*e));
-  String r = dur ? "-" + mmss(dur > pos ? dur - pos : 0) : "";
-  txt(tft, r, e->x + e->w - textW(r, 1), e->y + 14, 1, MAIN(*e));
+  TFT_eSprite s(&tft);
+  if (s.createSprite(e->w, 28)) {
+    s.fillSprite(K[0]);
+    drawProgOn(s, 0, 0, e->w);
+    s.pushSprite(e->x, e->y);
+    s.deleteSprite();
+  } else {
+    drawProgOn(tft, e->x, e->y, e->w);
+  }
 }
 
 void drawBtn(int i) {
@@ -502,8 +524,7 @@ void loop() {
   uint32_t now = millis();
   if (now - lastSec >= 1000) {
     lastSec = now;
-    if (playing && dur && pos < dur) pos++;
-    dProg = true;
+    if (playing && dur && pos < dur) { pos++; dProg = true; }
   }
   if (now - lastAnim >= 60) { lastAnim = now; animate(); }
   redraw();
