@@ -3,6 +3,7 @@ import asyncio
 import ctypes
 import datetime
 import json
+import math
 import threading
 import time
 import unicodedata
@@ -37,6 +38,12 @@ def eq_digits(chunk, rate, state):
     state['peak'] = max(state.get('peak', 1e-6) * 0.995, float(vals.max()), 1e-3)
     levels = np.clip(np.sqrt(vals / state['peak']), 0, 1)
     return ''.join(str(int(v * 9 + 0.5)) for v in levels)
+
+
+def auto_brightness(now):
+    """Brilho 60-255 que sobe e desce suave ao longo do dia: máximo às 13h, mínimo à 1h."""
+    h = now.hour + now.minute / 60
+    return round(60 + 195 * (0.5 + 0.5 * math.cos(2 * math.pi * (h - 13) / 24)))
 
 
 def press_key(vk):

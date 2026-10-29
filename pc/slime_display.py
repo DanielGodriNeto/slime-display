@@ -30,7 +30,7 @@ import preview
 from deck_service import ActionRunner
 from deck_ui import ColorRow
 from layout_editor import LayoutEditor
-from devices import SLIMES, VK, Equalizer, Link, Media, Volume, ascii_clean, press_key
+from devices import SLIMES, VK, auto_brightness, Equalizer, Link, Media, Volume, ascii_clean, press_key
 
 HERE = Path(__file__).resolve().parent
 RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
@@ -306,6 +306,7 @@ class App:
         self.send_if_changed('K', f'K {layout.rgb565(c["main"])} {layout.rgb565(c["accent"])}')
         self.send_if_changed('S', f'S {self.cfg["slime"]}')
         self.send_if_changed('V', f'V {self.vol}')
+        self.send_if_changed('D', f'D {auto_brightness(datetime.datetime.now())}')
         self.send_if_changed('T', 'T ' + datetime.datetime.now().strftime('%H:%M'))
         self.link.send(f'N {m["playing"]}|{m["pos"]}|{m["dur"]}|{ascii_clean(m["title"], 120)}|{ascii_clean(m["artist"], 30)}')
         self.link.send('E ' + self.eq.digits)

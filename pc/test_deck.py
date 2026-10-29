@@ -110,6 +110,16 @@ def test_roundtrip():
     assert new['layout'] == cfg['layout']
 
 
+def test_brightness():
+    from datetime import datetime
+    from devices import auto_brightness
+    day, night = auto_brightness(datetime(2026, 1, 1, 13)), auto_brightness(datetime(2026, 1, 1, 1))
+    assert day == 255 and night == 60
+    step = max(abs(auto_brightness(datetime(2026, 1, 1, h, m)) - auto_brightness(datetime(2026, 1, 1, h, m - 1 if m else 59)))
+               for h in range(1, 24) for m in range(1, 60))
+    assert step <= 2  # nunca salta de uma vez
+
+
 if __name__ == '__main__':
     for name, fn in sorted(globals().items()):
         if name.startswith('test_'):

@@ -43,6 +43,22 @@ enum { W = 480, H = 320, NB = 24 };
 #define BAUD 921600
 
 TFT_eSPI tft;
+// ---- luz de fundo: PWM com transição lenta; apaga sozinha se o PC parar de falar (dormiu, hibernou, app fechado) ----
+#define SLEEP_AFTER_MS 20000
+uint8_t blGoal = 160, blNow = 255;
+uint32_t lastRx = 0, lastTouch = 0;
+bool screenOff() { return millis() - max(lastRx, lastTouch) > SLEEP_AFTER_MS; }
+
+void updateBacklight() {
+  static uint32_t last = 0;
+  if (millis() - last < 30) return;  // 1 degrau a cada 30 ms: cerca de 5 s de 0 a 160
+  last = millis();
+  uint8_t goal = screenOff() ? 0 : blGoal;
+  if (blNow < goal) blNow++;
+  else if (blNow > goal) blNow--;
+  ledcWrite(TFT_BL, (uint32_t)blNow * blNow / 255);  // curva quadrática: o olho vê o brilho de forma não linear
+}
+
 TFT_eSprite eqS(&tft), titS(&tft), slS(&tft);
 TAMC_GT911 tp(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, W, H);
 Preferences prefs;
@@ -241,7 +257,13 @@ void drawEq() {
   eqS.pushSprite(e->x, e->y);
 }
 
-String mmss(uint32_t s) { char b[10]; snprintf(b, sizeof b, "%u:%02u", (unsigned)(s / 60), (unsigned)(s % 60)); return b; }
+// m:ss, ou h:mm:ss a partir de 1 hora
+String mmss(uint32_t s) {
+  char b[14];
+  if (s >= 3600) snprintf(b, sizeof b, "%u:%02u:%02u", (unsigned)(s / 3600), (unsigned)(s / 60 % 60), (unsigned)(s % 60));
+  else snprintf(b, sizeof b, "%u:%02u", (unsigned)(s / 60), (unsigned)(s % 60));
+  return b;
+}
 
 // monta a barra e os tempos fora da tela e envia de uma vez (sem piscar)
 void drawProgOn(TFT_eSPI& g, int x, int y, int w) {
@@ -422,11 +444,13 @@ void setSlime(int n) {
 void handleLine(String l) {
   l.trim();
   if (l.length() < 2) return;
+  lastRx = millis();
   char cmd = l[0];
   String a = l.substring(2);
   if (cmd == 'L' && a.length()) handleLayout(a);
   else if (cmd == 'S') setSlime(a.toInt());
   else if (cmd == 'K') setColors(a);
+  else if (cmd == 'D') blGoal = constrain(a.toInt(), 20, 255);
   else if (cmd == 'V') { vol = constrain(a.toInt(), 0, 10); dVol = true; }
   else if (cmd == 'T') { a.toCharArray(clockTxt, sizeof clockTxt); dClock = true; }
   else if (cmd == 'E') {
@@ -480,7 +504,9 @@ void readTouch() {
   int rawX = tp.points[0].x, rawY = (int16_t)tp.points[0].y;
   int x = constrain((rawY - TOUCH_X_LEFT) * W / (TOUCH_X_RIGHT - TOUCH_X_LEFT), 0, W - 1);
   int y = constrain((rawX - TOUCH_Y_TOP) * H / (TOUCH_Y_BOTTOM - TOUCH_Y_TOP), 0, H - 1);
+  if (!was && screenOff()) { lastTouch = millis(); was = true; return; }  // o 1º toque só acorda a tela
   if (!was) {
+    lastTouch = millis();
 #if TOUCH_DEBUG
     Serial.printf("TOUCH %d %d\n", x, y);
 #endif
@@ -523,6 +549,8 @@ void setup() {
   prefs.begin("slime", false);
   slime = min<int>(prefs.getUChar("slime", 0), N_SLIMES - 1);
   tft.init();
+  ledcAttach(TFT_BL, 5000, 8);
+  lastRx = millis();
   tft.setRotation(1);
   colorTest();
   tp.begin();
@@ -537,6 +565,7 @@ void loop() {
   static uint32_t lastAnim = 0, lastSec = 0;
   readSerial();
   readTouch();
+  updateBacklight();
   uint32_t now = millis();
   if (now - lastSec >= 1000) {
     lastSec = now;
