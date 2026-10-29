@@ -37,7 +37,7 @@ pc\.venv\Scripts\python pc\slime_display.py
 - Itens da lista à esquerda: slime, nome da música, artista, equalizador, tempo e barra, relógio, volume, texto livre (`{slime}` vira o nome do slime), botões de música (anterior/play/próxima/volume) e botões que abrem coisas (ícone de slime + texto).
 - Ações dos botões: abrir programa, site, pasta, atalho de teclado, digitar texto, macro (vários passos com pausas), mutar microfone, bloquear o PC. "Experimentar" testa sem tocar na placa.
 - Tudo o que muda é salvo e enviado para a placa na hora. Ao ligar sem o app, a placa mostra a tela padrão.
-- Aba Ajustes: porta, abrir com o Windows (fica na bandeja), exportar/importar tela. Importar mostra os botões que mexem no PC antes de aceitar: só importe de quem você confia.
+- Aba Ajustes: porta, brilho (automático pela hora do dia ou fixo), abrir com o Windows (fica na bandeja), exportar/importar tela. Importar mostra os botões que mexem no PC antes de aceitar: só importe de quem você confia.
 - Dados em `%APPDATA%\slime-display\deck.json`. Testes: `pc\.venv\Scripts\python pc\test_deck.py`.
 
 ## Regenerar sprites

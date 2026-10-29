@@ -120,6 +120,12 @@ def test_brightness():
     assert step <= 2  # nunca salta de uma vez
 
 
+def test_brightness_config():
+    c = model.clean_config
+    base = model.default_config()
+    assert [c({**base, 'brightness': v})['brightness'] for v in (0, 5, 100, 999, 'x', True)] == [0, 20, 100, 255, 0, 0]
+
+
 if __name__ == '__main__':
     for name, fn in sorted(globals().items()):
         if name.startswith('test_'):

@@ -77,9 +77,14 @@ def clean_action(raw):
     return action
 
 
+def _brightness(v):
+    """0 = automático (segue a hora do dia); senão fixo de 20 a 255."""
+    return max(20, min(255, v)) if isinstance(v, int) and not isinstance(v, bool) and v > 0 else 0
+
+
 def default_config():
     import layout
-    return {'version': 2, 'slime': 0, 'port': 'auto', 'autostart': True, 'colors': layout.clean_colors(None), 'layout': layout.default_layout()}
+    return {'version': 2, 'slime': 0, 'port': 'auto', 'autostart': True, 'brightness': 0, 'colors': layout.clean_colors(None), 'layout': layout.default_layout()}
 
 
 def clean_config(raw):
@@ -91,6 +96,7 @@ def clean_config(raw):
             'slime': raw.get('slime') if isinstance(raw.get('slime'), int) and 0 <= raw['slime'] < 28 else 0,
             'port': _s(raw.get('port'), 'auto') or 'auto',
             'autostart': bool(raw.get('autostart')),
+            'brightness': _brightness(raw.get('brightness')),
             'colors': layout.clean_colors(raw.get('colors')),
             'layout': layout.clean_layout(raw.get('layout'))}
 
@@ -130,7 +136,7 @@ def import_profile(text, current):
     if not isinstance(raw, dict) or 'layout' not in raw:
         raise ValueError('arquivo inválido')
     new = clean_config(raw)
-    new['port'], new['autostart'] = current['port'], current['autostart']
+    new['port'], new['autostart'], new['brightness'] = current['port'], current['autostart'], current['brightness']
     return new, risky_actions(new)
 
 

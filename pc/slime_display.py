@@ -96,6 +96,8 @@ class SettingsTab(ttk.Frame):
         self.app, cfg = app, app.cfg
         self.port = tk.StringVar(value=cfg['port'])
         self.auto = tk.BooleanVar(value=cfg['autostart'])
+        self.auto_bright = tk.BooleanVar(value=cfg['brightness'] == 0)
+        self.bright = tk.IntVar(value=cfg['brightness'] or 160)
         ttk.Label(self, text='Porta USB da placa', style='Head.TLabel').pack(anchor='w')
         row = ttk.Frame(self)
         row.pack(anchor='w', pady=6)
@@ -106,6 +108,12 @@ class SettingsTab(ttk.Frame):
         self.refresh_ports()
         ttk.Checkbutton(self, text='Abrir junto com o Windows (fica na bandeja)', variable=self.auto,
                         command=self.apply).pack(anchor='w', pady=(14, 0))
+        ttk.Label(self, text='Brilho da tela', style='Head.TLabel').pack(anchor='w', pady=(14, 4))
+        ttk.Checkbutton(self, text='Automático (mais claro de dia, mais escuro de noite)', variable=self.auto_bright,
+                        command=self.apply).pack(anchor='w')
+        self.scale = ttk.Scale(self, from_=20, to=255, variable=self.bright, length=240, command=lambda _v: self.apply())
+        self.scale.pack(anchor='w', pady=4)
+        self.scale.state(['disabled'] if self.auto_bright.get() else ['!disabled'])
         ttk.Label(self, text='Perfil (backup e compartilhar)', style='Head.TLabel').pack(anchor='w', pady=(14, 4))
         bar = ttk.Frame(self)
         bar.pack(anchor='w')
@@ -116,7 +124,8 @@ class SettingsTab(ttk.Frame):
         self.port_box['values'] = ['auto'] + [p.device for p in serial.tools.list_ports.comports()]
 
     def apply(self):
-        self.app.apply_settings(self.port.get(), self.auto.get())
+        self.scale.state(['disabled'] if self.auto_bright.get() else ['!disabled'])
+        self.app.apply_settings(self.port.get(), self.auto.get(), 0 if self.auto_bright.get() else int(self.bright.get()))
 
 
 class App:
@@ -219,8 +228,8 @@ class App:
         self.editor.redraw()
         self.commit()
 
-    def apply_settings(self, port, autostart):
-        self.cfg.update(port=port, autostart=autostart)
+    def apply_settings(self, port, autostart, brightness):
+        self.cfg.update(port=port, autostart=autostart, brightness=brightness)
         self.link.port = None if port == 'auto' else port
         try:
             set_autostart(autostart)
@@ -306,7 +315,7 @@ class App:
         self.send_if_changed('K', f'K {layout.rgb565(c["main"])} {layout.rgb565(c["accent"])}')
         self.send_if_changed('S', f'S {self.cfg["slime"]}')
         self.send_if_changed('V', f'V {self.vol}')
-        self.send_if_changed('D', f'D {auto_brightness(datetime.datetime.now())}')
+        self.send_if_changed('D', f'D {self.cfg["brightness"] or auto_brightness(datetime.datetime.now())}')
         self.send_if_changed('T', 'T ' + datetime.datetime.now().strftime('%H:%M'))
         self.link.send(f'N {m["playing"]}|{m["pos"]}|{m["dur"]}|{ascii_clean(m["title"], 120)}|{ascii_clean(m["artist"], 30)}')
         self.link.send('E ' + self.eq.digits)
