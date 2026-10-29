@@ -31,8 +31,12 @@
 #define TOUCH_SCL 32
 #define TOUCH_INT 21
 #define TOUCH_RST 25
-#define TOUCH_FLIP_X 1
-#define TOUCH_FLIP_Y 0
+// Calibração medida nos 4 cantos desta placa: o painel entrega x/y trocados e fora de escala.
+// tela_x vem do y cru (de 280 na esquerda a -125 na direita); tela_y vem do x cru (de 196 em cima a 444 embaixo).
+#define TOUCH_X_LEFT 280
+#define TOUCH_X_RIGHT -125
+#define TOUCH_Y_TOP 196
+#define TOUCH_Y_BOTTOM 444
 #define TOUCH_DEBUG 1
 
 enum { W = 480, H = 320, NB = 24 };
@@ -461,9 +465,9 @@ void readTouch() {
   last = millis();
   tp.read();
   if (!tp.isTouched) { was = false; return; }
-  int x = tp.points[0].x, y = tp.points[0].y;
-  if (TOUCH_FLIP_X) x = W - x;
-  if (TOUCH_FLIP_Y) y = H - y;
+  int rawX = tp.points[0].x, rawY = (int16_t)tp.points[0].y;
+  int x = constrain((rawY - TOUCH_X_LEFT) * W / (TOUCH_X_RIGHT - TOUCH_X_LEFT), 0, W - 1);
+  int y = constrain((rawX - TOUCH_Y_TOP) * H / (TOUCH_Y_BOTTOM - TOUCH_Y_TOP), 0, H - 1);
   if (!was) {
 #if TOUCH_DEBUG
     Serial.printf("TOUCH %d %d\n", x, y);

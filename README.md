@@ -4,10 +4,13 @@ Display de música estilo Slime Rancher para a CYD ESP32-3248S035C (3.5", 480×3
 
 ## Instalar em outro PC (o jeito fácil)
 A placa guarda o firmware na própria memória: se ela já foi gravada, basta ligá-la na USB de outro PC. Nada de compilar.
-1. Copie esta pasta inteira para o PC (pode ser o zip do GitHub: Code > Download ZIP).
-2. Dê duplo clique em `instalar.bat`. Ele instala o Python se faltar (precisa de internet), as bibliotecas e cria o atalho **Slime Display** na Área de Trabalho. Se pedir, feche e rode de novo.
-3. Ligue a placa na USB e abra o atalho. A porta é achada sozinha (driver CH340; o Windows 11 costuma instalar sozinho, senão procure "CH340 driver").
+1. Baixe `SlimeDisplay.exe` na página de [Releases](../../releases/latest) e dê duplo clique. Não precisa instalar Python.
+2. Na primeira vez a janela abre; o app já fica marcado para **abrir com o Windows, escondido na bandeja** (perto do relógio). Clique no ícone da bandeja para abrir de verdade.
+3. Ligue a placa na USB. A porta é achada sozinha (driver CH340; o Windows 11 costuma instalar sozinho, senão procure "CH340 driver").
+O Windows pode avisar "app não reconhecido" (o .exe não é assinado): *Mais informações > Executar assim mesmo*.
 Slime e tela escolhidos ficam no PC em `%APPDATA%\slime-display`, então o outro PC começa com a tela padrão.
+
+Sem o .exe: `instalar.bat` instala o Python e as bibliotecas e cria um atalho. Para gerar o .exe: `toolsuild_exe.bat`.
 
 ## Placa (firmware)
 1. Instale o PlatformIO (extensão do VS Code ou `pip install platformio`).
@@ -15,7 +18,7 @@ Slime e tela escolhidos ficam no PC em `%APPDATA%\slime-display`, então o outro
 3. No boot aparece uma barra de teste: deve ser **R, G, B** nessa ordem.
    - Vermelho/azul trocados: em `platformio.ini` troque `TFT_BGR` por `TFT_RGB`.
    - Cores invertidas (fundo claro): descomente `-DTFT_INVERSION_ON=1`.
-4. Toque errado (espelhado): ajuste `TOUCH_FLIP_X` / `TOUCH_FLIP_Y` no topo de `src/main.cpp`. Com `TOUCH_DEBUG=1` a placa imprime `TOUCH x y` no serial.
+4. Toque errado: ajuste as constantes `TOUCH_X_LEFT/RIGHT` e `TOUCH_Y_TOP/BOTTOM` no topo de `src/main.cpp` (já calibradas para esta placa). Com `TOUCH_DEBUG=1` a placa imprime `TOUCH x y` no serial.
 5. Pinos do toque (SDA 33, SCL 32, INT 21, RST 25) são os usuais dessa CYD; se não responder, confira no seu modelo.
 
 ## App do Windows

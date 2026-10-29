@@ -38,6 +38,8 @@ RUN_NAME = 'SlimeDisplay'
 
 
 def autostart_command():
+    if getattr(sys, 'frozen', False):  # versão .exe: o próprio executável
+        return f'"{sys.executable}" --hidden'
     pyw = Path(sys.executable).with_name('pythonw.exe')
     return f'"{pyw if pyw.exists() else sys.executable}" "{Path(__file__).resolve()}" --hidden'
 
@@ -314,6 +316,11 @@ def main():
     ctypes.windll.shcore.SetProcessDpiAwareness(1)  # texto nítido em telas de alta resolução
     root = TkinterDnD.Tk() if TkinterDnD else tk.Tk()
     app = App(root)
+    if app.cfg['autostart']:  # renova o caminho se o app foi movido
+        try:
+            set_autostart(True)
+        except OSError:
+            pass
     if '--hidden' in sys.argv and app.tray:
         root.withdraw()
     root.mainloop()

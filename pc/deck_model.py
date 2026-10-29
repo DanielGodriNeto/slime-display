@@ -79,7 +79,7 @@ def clean_action(raw):
 
 def default_config():
     import layout
-    return {'version': 2, 'slime': 0, 'port': 'auto', 'autostart': False, 'colors': layout.clean_colors(None), 'layout': layout.default_layout()}
+    return {'version': 2, 'slime': 0, 'port': 'auto', 'autostart': True, 'colors': layout.clean_colors(None), 'layout': layout.default_layout()}
 
 
 def clean_config(raw):
