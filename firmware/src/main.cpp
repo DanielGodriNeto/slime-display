@@ -20,6 +20,7 @@
 //   HELLO                         no boot (PC reenvia o estado e o layout)
 //   B prev|play|next|vol|a<n>     botão tocado (a<n> = campo a do botão de ação)
 #include <Arduino.h>
+#include <esp_partition.h>
 #include <Preferences.h>
 #include <TAMC_GT911.h>
 #include <TFT_eSPI.h>
@@ -100,7 +101,7 @@ bool playing = false;
 uint32_t pos = 0, dur = 0;
 String title = "NOTHING PLAYING", artist = "";
 uint8_t vol = 6;
-char clockTxt[6] = "--:--";
+char clockTxt[9] = "--:--";
 uint8_t eqTarget[NB] = {}, eqShown[NB] = {};
 uint32_t lastE = 0;
 int pressed = -1;
@@ -121,6 +122,38 @@ bool eqOk = false, titOk = false, slOk = false;
 bool dStatic = true, dClock = true, dProg = true, dBtns = true, dVol = true, dArtist = true, dTitle = true;
 
 void dirtyAll() { dStatic = dClock = dProg = dBtns = dVol = dArtist = dTitle = true; }
+
+// ---- foto de fundo: 8 vagas de 480x320 RGB565 (little-endian) na partição "photos", lidas direto da flash ----
+enum { SLOTS = 8, SLOT_BYTES = 0x50000, PHOTO_BYTES = W * H * 2, CHUNK = 4096 };
+const esp_partition_t* photoPart = nullptr;
+esp_partition_mmap_handle_t phH = 0;
+const uint16_t* ph = nullptr;  // foto mapeada; nullptr = fundo liso (cor do slime)
+int photoSlot = -1;
+
+void setPhoto(int n, bool force = false) {
+  if (!force && n == photoSlot && (ph || n < 0)) return;
+  if (ph) { esp_partition_munmap(phH); ph = nullptr; }
+  photoSlot = n;
+  if (n >= 0 && n < SLOTS && photoPart) {
+    const void* p;
+    if (esp_partition_mmap(photoPart, (uint32_t)n * SLOT_BYTES, PHOTO_BYTES, ESP_PARTITION_MMAP_DATA, &p, &phH) == ESP_OK) ph = (const uint16_t*)p;
+    }
+  dirtyAll();
+}
+
+// pinta em `g`, no retângulo (gx,gy,w,h), o fundo que está na tela em (sx,sy): a foto ou a cor lisa
+void bg(TFT_eSPI& g, int gx, int gy, int w, int h, int sx, int sy) {
+  if (!ph) { g.fillRect(gx, gy, w, h, K[0]); return; }
+  w = min(w, W - sx); h = min(h, H - sy);
+  g.setSwapBytes(true);
+  // pushImage não é virtual: num sprite tem de ser chamado pela classe do sprite
+  bool spr = &g != &tft;
+  for (int r = 0; r < h; r++) {
+    uint16_t* row = (uint16_t*)(ph + (sy + r) * W + sx);
+    if (spr) static_cast<TFT_eSprite&>(g).pushImage(gx, gy + r, w, 1, row);
+    else g.pushImage(gx, gy + r, w, 1, row);
+  }
+}
 
 // ---- cores ----
 uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) { return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3); }
@@ -160,7 +193,7 @@ String clean(String s) {
 }
 int textW(const String& s, int sc) { return s.length() ? s.length() * 12 * sc - 2 * sc : 0; }
 
-void txt(TFT_eSPI& g, const String& s, int x, int y, int sc, uint16_t col) {
+void txtRaw(TFT_eSPI& g, const String& s, int x, int y, int sc, uint16_t col) {
   int d = 2 * sc;
   for (uint16_t n = 0; n < s.length(); n++) {
     const char* p = strchr(FONT_CHARS, s[n]);
@@ -170,6 +203,11 @@ void txt(TFT_eSPI& g, const String& s, int x, int y, int sc, uint16_t col) {
       for (int c = 0; c < 5; c++)
         if (gl[r] >> (4 - c) & 1) g.fillRect(x + (n * 6 + c) * d, y + r * d, d, d, col);
   }
+}
+
+void txt(TFT_eSPI& g, const String& s, int x, int y, int sc, uint16_t col) {
+  if (ph) txtRaw(g, s, x + sc, y + sc, sc, 0);  // sombra única e sólida atrás do texto, só sobre foto
+  txtRaw(g, s, x, y, sc, col);
 }
 
 void icon(TFT_eSPI& g, const char* const* m, int rows, int cols, int cx, int cy, uint16_t col, bool mirror = false) {
@@ -193,17 +231,18 @@ void drawStaticTexts() {
 void drawClock() {
   for (int i = 0; i < nEl; i++)
     if (els[i].t == 'c') {
-      int w = textW("00:00", els[i].a), h = 14 * els[i].a;
+      const El& e = els[i];
+      String hm = String(clockTxt).substring(0, 5), sec = e.b && strlen(clockTxt) >= 8 ? String(clockTxt + 6) : "";
+      int sb = max(1, e.a / 2), w = textW("00:00", e.a) + (sec.length() ? 8 + textW(sec, sb) : 0), h = 14 * e.a;
+      w = min(w, W - e.x); h = min(h, H - e.y);
       TFT_eSprite s(&tft);
-      if (s.createSprite(w, h)) {
-        s.fillSprite(K[0]);
-        txt(s, clockTxt, 0, 0, els[i].a, MAIN(els[i]));
-        s.pushSprite(els[i].x, els[i].y);
-        s.deleteSprite();
-      } else {
-        tft.fillRect(els[i].x, els[i].y, w, h, K[0]);
-        txt(tft, clockTxt, els[i].x, els[i].y, els[i].a, MAIN(els[i]));
-      }
+      bool ok = s.createSprite(w, h);
+      TFT_eSPI& g = ok ? (TFT_eSPI&)s : tft;
+      int ox = ok ? 0 : e.x, oy = ok ? 0 : e.y;
+      bg(g, ox, oy, w, h, e.x, e.y);
+      txt(g, hm, ox, oy, e.a, MAIN(e));
+      if (sec.length()) txt(g, sec, ox + textW("00:00", e.a) + 8, oy + h - 14 * sb, sb, MAIN(e));
+      if (ok) { s.pushSprite(e.x, e.y); s.deleteSprite(); }
     }
 }
 
@@ -222,7 +261,7 @@ void drawSprite(TFT_eSPI& g, int n, int ox, int oy, int sc) {
 void drawSlime() {
   El* e = find('s');
   if (!e || !slOk) return;
-  slS.fillSprite(K[0]);
+  bg(slS, 0, 0, slS.width(), slS.height(), e->x, e->y);
   drawSprite(slS, slime, 0, playing && (millis() / 250) % 2 ? 0 : 4, e->a);
   slS.pushSprite(e->x, e->y);
 }
@@ -230,7 +269,7 @@ void drawSlime() {
 void drawTitle() {
   El* e = find('t');
   if (!e || !titOk) return;
-  titS.fillSprite(K[0]);
+  bg(titS, 0, 0, titS.width(), titS.height(), e->x, e->y);
   int tw = textW(title, e->a);
   int off = tw > e->w ? (millis() / 60) % (tw + 60) : 0;
   txt(titS, title, -off, 2, e->a, MAIN(*e));
@@ -241,7 +280,7 @@ void drawTitle() {
 void drawArtist() {
   El* e = find('r');
   if (!e) return;
-  tft.fillRect(e->x, e->y, e->w, 14 * e->a, K[0]);
+  bg(tft, e->x, e->y, e->w, 14 * e->a, e->x, e->y);
   String a = artist.substring(0, max(0, (e->w + 2 * e->a) / (12 * e->a)));
   txt(tft, a, e->x, e->y, e->a, ACC(*e));
 }
@@ -249,7 +288,7 @@ void drawArtist() {
 void drawEq() {
   El* e = find('e');
   if (!e || !eqOk) return;
-  eqS.fillSprite(K[0]);
+  bg(eqS, 0, 0, eqS.width(), eqS.height(), e->x, e->y);
   int pitch = max(2, e->w / NB), bw = max(1, pitch * 3 / 4), top = e->h - 4;
   for (int j = 0; j < NB; j++) {
     int h = max(3, eqShown[j] * top / 9);
@@ -269,14 +308,23 @@ String mmss(uint32_t s) {
 }
 
 // monta a barra e os tempos fora da tela e envia de uma vez (sem piscar)
-void drawProgOn(TFT_eSPI& g, int x, int y, int w) {
-  g.fillRect(x, y, w, 8, ACC(*find('p')));
-  g.fillRect(x + 2, y + 2, w - 4, 4, K[1]);
+void drawProgOn(TFT_eSPI& g, int x, int y, int w, int sx, int sy) {
   El* e = find('p');
-  if (dur) g.fillRect(x + 2, y + 2, ((int)((w - 4) * (uint64_t)min(pos, dur) / dur) / 2) * 2, 4, ACC(*e));
-  g.fillRect(x, y + 14, w, 14, K[0]);
+  uint32_t shown = min(pos, dur);
+  bg(g, x, y, w, 28, sx, sy);
+  if (ph) {  // sobre foto: linha fina com marcador, e o tempo que falta
+    int fill = dur ? (int)((uint64_t)w * shown / dur) : 0;
+    g.fillRect(x, y + 3, w, 2, mix(0, 0xFFFF, 110));
+    g.fillRect(x, y + 3, fill, 2, ACC(*e));
+    g.fillRect(min(x + fill, x + w - 6), y, 6, 8, ACC(*e));
+  } else {
+    g.fillRect(x, y, w, 8, ACC(*e));
+    g.fillRect(x + 2, y + 2, w - 4, 4, K[1]);
+    if (dur) g.fillRect(x + 2, y + 2, ((int)((w - 4) * (uint64_t)shown / dur) / 2) * 2, 4, ACC(*e));
+    g.fillRect(x, y + 14, w, 14, K[0]);
+  }
   txt(g, mmss(pos), x, y + 14, 1, MAIN(*e));
-  String r = dur ? mmss(dur) : "";
+  String r = dur ? (ph ? "-" + mmss(dur - shown) : mmss(dur)) : "";
   txt(g, r, x + w - textW(r, 1), y + 14, 1, MAIN(*e));
 }
 
@@ -285,12 +333,11 @@ void drawProg() {
   if (!e) return;
   TFT_eSprite s(&tft);
   if (s.createSprite(e->w, 28)) {
-    s.fillSprite(K[0]);
-    drawProgOn(s, 0, 0, e->w);
+    drawProgOn(s, 0, 0, e->w, e->x, e->y);
     s.pushSprite(e->x, e->y);
     s.deleteSprite();
   } else {
-    drawProgOn(tft, e->x, e->y, e->w);
+    drawProgOn(tft, e->x, e->y, e->w, e->x, e->y);
   }
 }
 
@@ -300,8 +347,20 @@ void drawBtnOn(TFT_eSPI& g, int i, int ox, int oy) {
   bool press = pressed == i && millis() - pressedAt < 160;
   uint16_t A = ACC(b), M = MAIN(b);
   int y = oy + (press ? 4 : 0), x = ox, w = b.w, h = b.h - 8;  // 8 px reservados para sombra e afundar
-  g.fillRect(x, oy, w, b.h, K[0]);
-  g.fillRect(x, oy + h, w, 6, mix(K[0], 0, 120));
+  bg(g, x, oy, w, b.h, b.x, b.y);
+  if (ph && b.t == 'm') {  // sobre foto: só o ícone, com sombra
+    int cx = x + w / 2 + (press ? 2 : 0), cy = oy + b.h / 2 + (press ? 2 : 0);
+    for (int pass = 0; pass < 2; pass++) {
+      uint16_t c = pass ? A : 0;
+      int o = pass ? 0 : 2;
+      if (b.a == 0) icon(g, IC_PREV, 9, 9, cx + o, cy + o, c);
+      else if (b.a == 2) icon(g, IC_PREV, 9, 9, cx + o, cy + o, c, true);
+      else if (b.a == 1) { if (playing) icon(g, IC_PAUSE, 7, 8, cx + o, cy + o, c); else icon(g, IC_PLAY, 7, 8, cx + o, cy + o, c); }
+      else icon(g, IC_VOL, 9, 11, cx + o, cy + o, c);
+    }
+    return;
+  }
+  if (!ph) g.fillRect(x, oy + h, w, 6, mix(K[0], 0, 120));
   g.fillRect(x + 4, y, w - 8, h, A);
   g.fillRect(x, y + 4, w, h - 8, A);
   g.fillRect(x + 6, y + 4, w - 12, h - 8, K[1]);
@@ -340,13 +399,16 @@ void drawVol() {
   for (int i = 0; i < 10; i++) v += i < vol ? '#' : '-';
   for (int i = 0; i < nEl; i++)
     if (els[i].t == 'v') {
-      tft.fillRect(els[i].x, els[i].y, textW(v, els[i].a), 14 * els[i].a, K[0]);
+      bg(tft, els[i].x, els[i].y, textW(v, els[i].a), 14 * els[i].a, els[i].x, els[i].y);
       txt(tft, v, els[i].x, els[i].y, els[i].a, ACC(els[i]));
     }
 }
 
 void redraw() {
-  if (dStatic) { tft.fillScreen(K[0]); drawStaticTexts(); dStatic = false; }
+  if (dStatic) {
+    if (ph) { tft.setSwapBytes(true); tft.pushImage(0, 0, W, H, (uint16_t*)ph); } else tft.fillScreen(K[0]);
+    drawStaticTexts(); dStatic = false;
+  }
   if (dClock) { drawClock(); dClock = false; }
   if (dArtist) { drawArtist(); dArtist = false; }
   if (dTitle) { drawTitle(); dTitle = false; }
@@ -401,7 +463,8 @@ void addElement(const String& a) {  // "<tipo> x y w h a b corTexto corDestaque 
   label.substring(0, 24).toCharArray(e.label, sizeof e.label);
   switch (e.t) {
     case 's': e.a = constrain(e.a, 1, 5); break;
-    case 't': case 'c': e.a = constrain(e.a, 1, 3); break;
+    case 't': e.a = constrain(e.a, 1, 3); break;
+    case 'c': e.a = constrain(e.a, 1, 5); break;
     case 'r': case 'v': e.a = constrain(e.a, 1, 2); break;
     case 'x': e.a = constrain(e.a, 1, 3); break;
     case 'e': e.h = min<int>(e.h, 20000 / e.w); break;
@@ -444,6 +507,33 @@ void setSlime(int n) {
   applyTheme();
 }
 
+// ---- envio de foto: "U <vaga> <bytes>", depois os bytes em blocos de 4096; a placa responde "A" a cada bloco e "OK" no fim ----
+uint32_t upLeft = 0, upOff = 0, upBase = 0, upLast = 0;
+uint8_t upBuf[CHUNK];
+uint16_t upFill = 0;
+
+void startUpload(const String& a) {
+  int sp = a.indexOf(' ');
+  int slot = a.toInt();
+  uint32_t len = sp < 0 ? 0 : a.substring(sp + 1).toInt();
+  if (!photoPart || slot < 0 || slot >= SLOTS || len == 0 || len > SLOT_BYTES || len % CHUNK) { Serial.println("U ERR"); return; }
+  if (slot == photoSlot && ph) { esp_partition_munmap(phH); ph = nullptr; }
+  upBase = (uint32_t)slot * SLOT_BYTES; upOff = 0; upLeft = len; upFill = 0; upLast = millis();
+  Serial.println("A");
+}
+
+void uploadBytes() {
+  int n = Serial.readBytes(upBuf + upFill, min<int>(Serial.available(), min<uint32_t>(CHUNK - upFill, upLeft)));
+  if (n > 0) { upFill += n; upLeft -= n; upLast = lastRx = millis(); }
+  if (upFill == CHUNK) {
+    esp_partition_erase_range(photoPart, upBase + upOff, CHUNK);
+    esp_partition_write(photoPart, upBase + upOff, upBuf, CHUNK);
+    upOff += CHUNK; upFill = 0;
+    if (upLeft) Serial.println("A");
+    else { Serial.println("OK"); setPhoto(photoSlot, true); }
+  } else if (millis() - upLast > 4000) { upLeft = 0; upFill = 0; setPhoto(photoSlot, true); }
+}
+
 void handleLine(String l) {
   l.trim();
   if (l.length() < 2) return;
@@ -453,6 +543,9 @@ void handleLine(String l) {
   if (cmd == 'L' && a.length()) handleLayout(a);
   else if (cmd == 'S') setSlime(a.toInt());
   else if (cmd == 'K') setColors(a);
+  else if (cmd == '?') Serial.printf("ST bl=%d off=%d ph=%d slot=%d nEl=%d heap=%u\n", blNow, screenOff(), ph != nullptr, photoSlot, nEl, (unsigned)ESP.getFreeHeap());
+  else if (cmd == 'G') setPhoto(constrain(a.toInt(), -1, SLOTS - 1));
+  else if (cmd == 'U') startUpload(a);
   else if (cmd == 'D') blGoal = constrain(a.toInt(), 20, 255);
   else if (cmd == 'V') { vol = constrain(a.toInt(), 0, 10); dVol = true; }
   else if (cmd == 'T') { a.toCharArray(clockTxt, sizeof clockTxt); dClock = true; }
@@ -476,9 +569,10 @@ void handleLine(String l) {
 
 void readSerial() {
   static String buf;
+  if (upLeft) { uploadBytes(); return; }
   while (Serial.available()) {
     char c = Serial.read();
-    if (c == '\n') { handleLine(buf); buf = ""; }
+    if (c == '\n') { handleLine(buf); buf = ""; if (upLeft) return; }
     else if (buf.length() < 200) buf += c;
   }
 }
@@ -551,6 +645,7 @@ void setup() {
   Serial.begin(BAUD);
   prefs.begin("slime", false);
   slime = min<int>(prefs.getUChar("slime", 0), N_SLIMES - 1);
+  photoPart = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, (esp_partition_subtype_t)0x40, "photos");
   tft.init();
   ledcAttach(TFT_BL, 5000, 8);
   ledcWrite(TFT_BL, 0);

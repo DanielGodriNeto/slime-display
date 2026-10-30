@@ -146,7 +146,7 @@ def render(layout, slime, colors=None):
         elif kind == 'progress':
             progress(d, el, k)
         elif kind == 'clock':
-            text(d, '21:45', el['x'], el['y'], s, k[3])
+            text(d, '21:45:30' if el['seconds'] else '21:45', el['x'], el['y'], s, k[3])
         elif kind == 'volume':
             text(d, lay.SAMPLE_VOLUME, el['x'], el['y'], s, k[2])
         elif kind == 'text':

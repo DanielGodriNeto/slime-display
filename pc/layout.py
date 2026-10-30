@@ -21,7 +21,7 @@ TYPES = {
     'artist': ('r', 'Artista', (1, 2), 'w', False),
     'eq': ('e', 'Equalizador', None, 'wh', True),
     'progress': ('p', 'Tempo e barra', None, 'w', False),
-    'clock': ('c', 'Relógio', (1, 3), '', False),
+    'clock': ('c', 'Relógio', (1, 5), '', False),
     'volume': ('v', 'Volume', (1, 2), '', False),
     'text': ('x', 'Texto', (1, 3), '', False),
     'media': ('m', 'Botão de mídia', None, 'wh', False),
@@ -32,7 +32,7 @@ UNIQUE = {'slime', 'title', 'eq'}  # a placa tem um buffer só para cada um
 
 def element(type_, /, **fields):
     base = {'type': type_, 'x': 0, 'y': 0, 'w': 100, 'h': 54, 'scale': 1, 'slime': 0, 'label': '', 'kind': 'play',
-            'action': {'type': 'none'}, 'main': '', 'accent': '', 'pixels': ''}
+            'action': {'type': 'none'}, 'main': '', 'accent': '', 'pixels': '', 'seconds': False}
     base.update(fields)
     return base
 
@@ -52,6 +52,21 @@ def default_layout():
         element('media', x=368, y=220, w=97, kind='vol'),
         element('volume', x=300, y=284),
     ]
+
+
+PHOTO_SLOTS = 8
+PHOTO_ACCENTS = ('#8fe3d0', '#37ffa0', '#ffe600', '#4dffd0')  # destaque de cada foto do template
+
+
+def photo_layout(accent):
+    """Template de foto: relógio pixel com segundos, nome, artista, linha de progresso com o tempo que falta e botões."""
+    white = '#ffffff'
+    keys = [element('media', x=50 + 100 * i, y=294, w=80, h=24, kind=k, accent=accent if k == 'play' else white)
+            for i, k in enumerate(MEDIA_KINDS)]
+    return [element('clock', x=97, y=52, scale=4, main=white, seconds=True),
+            element('title', x=40, y=204, w=400, scale=2, main=white),
+            element('artist', x=40, y=240, w=400, accent=white),
+            element('progress', x=40, y=262, w=400, main=white, accent=accent)] + keys
 
 
 def clean_color(value):
@@ -148,6 +163,7 @@ def clean_element(raw):
     el['action'] = model.clean_action(raw.get('action'))
     el['main'], el['accent'] = clean_color(raw.get('main')), clean_color(raw.get('accent'))
     el['pixels'] = clean_pixels(raw.get('pixels')) if kind == 'action' else ''
+    el['seconds'] = kind == 'clock' and raw.get('seconds') is True
     return el
 
 
@@ -175,8 +191,9 @@ def wire(layout, slime_name):
         code = TYPES[el['type']][0]
         a = {'media': MEDIA_KINDS.index(el['kind']), 'action': i}.get(el['type'], el['scale'])
         label = model.ascii_label(label_for(el, slime_name)) if el['type'] in ('text', 'action') else ''
+        b = int(el['seconds']) if el['type'] == 'clock' else el['slime']
         colors = f'{rgb565(el["main"])} {rgb565(el["accent"])} {el["pixels"] or "-"}'
-        lines.append(f'L A {code} {el["x"]} {el["y"]} {el["w"]} {el["h"]} {a} {el["slime"]} {colors} {label}'.rstrip())
+        lines.append(f'L A {code} {el["x"]} {el["y"]} {el["w"]} {el["h"]} {a} {b} {colors} {label}'.rstrip())
     return lines + ['L D']
 
 

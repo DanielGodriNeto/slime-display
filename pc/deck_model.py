@@ -84,7 +84,7 @@ def _brightness(v):
 
 def default_config():
     import layout
-    return {'version': 2, 'slime': 0, 'port': 'auto', 'autostart': True, 'brightness': 0, 'colors': layout.clean_colors(None), 'layout': layout.default_layout()}
+    return {'version': 2, 'slime': 0, 'port': 'auto', 'autostart': True, 'brightness': 0, 'photo': -1, 'colors': layout.clean_colors(None), 'layout': layout.default_layout()}
 
 
 def clean_config(raw):
@@ -97,6 +97,7 @@ def clean_config(raw):
             'port': _s(raw.get('port'), 'auto') or 'auto',
             'autostart': bool(raw.get('autostart')),
             'brightness': _brightness(raw.get('brightness')),
+            'photo': raw['photo'] if isinstance(raw.get('photo'), int) and -1 <= raw['photo'] < 8 else -1,
             'colors': layout.clean_colors(raw.get('colors')),
             'layout': layout.clean_layout(raw.get('layout'))}
 

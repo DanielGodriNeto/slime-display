@@ -314,9 +314,10 @@ class App:
         c = self.cfg['colors']
         self.send_if_changed('K', f'K {layout.rgb565(c["main"])} {layout.rgb565(c["accent"])}')
         self.send_if_changed('S', f'S {self.cfg["slime"]}')
+        self.send_if_changed('G', f'G {self.cfg["photo"]}')
         self.send_if_changed('V', f'V {self.vol}')
         self.send_if_changed('D', f'D {self.cfg["brightness"] or auto_brightness(datetime.datetime.now())}')
-        self.send_if_changed('T', 'T ' + datetime.datetime.now().strftime('%H:%M'))
+        self.send_if_changed('T', 'T ' + datetime.datetime.now().strftime('%H:%M:%S' if any(e['seconds'] for e in self.cfg['layout']) else '%H:%M'))
         self.link.send(f'N {m["playing"]}|{m["pos"]}|{m["dur"]}|{ascii_clean(m["title"], 120)}|{ascii_clean(m["artist"], 30)}')
         self.link.send('E ' + self.eq.digits)
         self.resync = False
