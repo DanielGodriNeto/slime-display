@@ -221,6 +221,11 @@ class Link:
                 continue
             try:
                 self.ser = serial.Serial(port, BAUD, timeout=0.5)
+                time.sleep(1.5)
+                try:
+                    self.ser.reset_input_buffer()
+                except Exception:
+                    pass
                 self.connected = True
                 self.on_line('HELLO')
                 ser = self.ser

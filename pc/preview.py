@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw
 
 import font_data
 import layout as lay
+import vfont
 
 HERE = Path(__file__).parent
 SLIMES = json.loads((HERE / 'slimes.json').read_text(encoding='utf8'))
@@ -125,28 +126,67 @@ def progress(d, el, k):
     text(d, '-2:10', x + w - lay.text_width(5, 1), y + 14, 1, k[3])
 
 
-def render(layout, slime, colors=None):
-    """Imagem PIL 480x320 da tela, com dados de exemplo (música tocando)."""
+def photo_button(img, d, el, k):
+    """Botão sobre foto: só o ícone, com sombra (como a placa faz em modo foto)."""
+    cx, cy = el['x'] + el['w'] // 2, el['y'] + el['h'] // 2
+    rows = {'prev': IC_PREV, 'next': IC_PREV, 'play': IC_PLAY, 'vol': IC_VOL}[el['kind']]
+    mirror = el['kind'] == 'next'
+    bitmap(d, rows, cx + 2, cy + 2, '#000000', mirror)
+    bitmap(d, rows, cx, cy, k[2], mirror)
+
+
+def photo_progress(d, el, k):
+    """Sobre foto: escala 2 = 60 segmentos que acendem; senão linha fina com marcador (sem bg de barra)."""
+    x, y, w = el['x'], el['y'], el['w']
+    if el['scale'] == 2:
+        for i in range(0, 60, 1):
+            if i < 24:  # 40% acesos, só para a prévia
+                rect(d, x + i * w // 60, y, 4, 8, k[2])
+    else:
+        rect(d, x, y + 3, w, 2, '#4a4a4a')
+        rect(d, x, y + 3, w * 2 // 5, 2, k[2])
+        rect(d, x + w * 2 // 5 - 3, y, 6, 8, k[2])
+    text(d, '1:24', x, y + 14, 1, k[3])
+    text(d, '-2:10', x + w - lay.text_width(5, 1), y + 14, 1, k[3])
+
+
+def render(layout, slime, colors=None, photo=None):
+    """Imagem PIL 480x320 da tela, com dados de exemplo (música tocando). `photo` = fundo de foto (modo foto da placa)."""
     base = theme(slime, colors)
     k = base
     name = SLIMES[slime]['name'].upper()
-    img = Image.new('RGBA', (lay.W, lay.H), k[0])
+    img = photo.convert('RGBA') if photo else Image.new('RGBA', (lay.W, lay.H), k[0])
     d = ImageDraw.Draw(img)
     for el in layout:
         kind, s = el['type'], el['scale']
         k = with_colors(base, el)
+        if photo and kind == 'progress':
+            photo_progress(d, el, k)
+            continue
+        if photo and kind == 'media':
+            photo_button(img, d, el, k)
+            continue
         if kind == 'slime':
             sprite(img, slime, el['x'], el['y'] + 4, s)
-        elif kind == 'title':
-            text(d, 'MUSICA EXEMPLO', el['x'], el['y'] + 2, s, k[3])
+        elif kind == 'title':  # mesma linha de base e sombra da placa (sprite com 2 px de topo)
+            vfont.draw(img, lay.vector_font(el), lay.vector_px(el), 'MUSICA EXEMPLO', el['x'], el['y'] + 2, k[3],
+                       shadow=bool(photo))
+        elif kind == 'artist' and el['font']:
+            vfont.draw(img, lay.vector_font(el), lay.vector_px(el), 'ARTISTA EXEMPLO', el['x'], el['y'] + 2, k[3], shadow=bool(photo))
         elif kind == 'artist':
             text(d, 'ARTISTA EXEMPLO', el['x'], el['y'], s, k[2])
         elif kind == 'eq':
             equalizer(d, el, k)
         elif kind == 'progress':
             progress(d, el, k)
-        elif kind == 'clock':
-            text(d, '21:45:30' if el['seconds'] else '21:45', el['x'], el['y'], s, k[3])
+        elif kind == 'clock':  # igual à placa: hora em Michroma, segundos menores na mesma linha de base
+            px, x, y = 20 * s, el['x'], el['y']
+            hw = vfont.width('mich', px, '00:00')
+            vfont.draw(img, 'mich', px, '21:45', x, y, k[3], shadow=bool(photo))
+            if el['seconds']:
+                spx = 20 * max(1, s // 2)
+                by = y + vfont.cap('mich', px) - vfont.cap('mich', spx)
+                vfont.draw(img, 'mich', spx, ':30', x + hw + 8, by, k[2], shadow=bool(photo))
         elif kind == 'volume':
             text(d, lay.SAMPLE_VOLUME, el['x'], el['y'], s, k[2])
         elif kind == 'text':

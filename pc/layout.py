@@ -7,6 +7,7 @@ O mesmo layout é desenhado na prévia do editor (preview.py) e enviado à placa
 import copy
 
 import deck_model as model
+import vfont
 
 W, H = 480, 320
 MAX_ELEMENTS = 24
@@ -19,8 +20,8 @@ TYPES = {
     'slime': ('s', 'Slime', (1, 5), '', True),
     'title': ('t', 'Nome da música', (1, 3), 'w', True),
     'artist': ('r', 'Artista', (1, 2), 'w', False),
-    'eq': ('e', 'Equalizador', None, 'wh', True),
-    'progress': ('p', 'Tempo e barra', None, 'w', False),
+    'eq': ('e', 'Equalizador', (1, 2), 'wh', True),  # escala 2 = barras largas (só foto)
+    'progress': ('p', 'Tempo e barra', (1, 2), 'w', False),  # escala 2 = barra em 60 segmentos (só foto)
     'clock': ('c', 'Relógio', (1, 5), '', False),
     'volume': ('v', 'Volume', (1, 2), '', False),
     'text': ('x', 'Texto', (1, 3), '', False),
@@ -32,7 +33,7 @@ UNIQUE = {'slime', 'title', 'eq'}  # a placa tem um buffer só para cada um
 
 def element(type_, /, **fields):
     base = {'type': type_, 'x': 0, 'y': 0, 'w': 100, 'h': 54, 'scale': 1, 'slime': 0, 'label': '', 'kind': 'play',
-            'action': {'type': 'none'}, 'main': '', 'accent': '', 'pixels': '', 'seconds': False}
+            'action': {'type': 'none'}, 'main': '', 'accent': '', 'pixels': '', 'seconds': False, 'font': 0, 'dot': 0}
     base.update(fields)
     return base
 
@@ -45,7 +46,7 @@ def default_layout():
         element('eq', x=22, y=125, w=440, h=45),
         element('progress', x=14, y=184, w=452),
         element('text', x=12, y=10, label='{slime} FM'),
-        element('clock', x=352, y=2, scale=2),
+        element('clock', x=316, y=2, scale=2),
         element('media', x=14, y=220, w=97, kind='prev'),
         element('media', x=119, y=220, w=136, kind='play'),
         element('media', x=263, y=220, w=97, kind='next'),
@@ -116,19 +117,40 @@ def label_for(el, slime_name):
     return el['label'].replace('{slime}', slime_name)
 
 
+def vector_font(el):
+    """Fonte vetorial de título ou artista: 'exo' (padrão) ou 'gara' (Garamond, os temas Death Note)."""
+    if el['type'] == 'artist' and el['font'] == 2:
+        return 'mich'
+    return 'gara' if el['font'] == 1 else 'exo'
+
+
+def vector_px(el):
+    """Tamanho em px por escala: Exo 2 = 20; Garamond = 15 no título e 12 no artista (como o mockup)."""
+    if el['font'] == 2:
+        return (12 if el['type'] == 'artist' else 16) * el['scale']
+    if not el['font']:
+        return 20 * el['scale']
+    return (15 if el['type'] == 'title' else 12) * el['scale']
+
+
 def box(el, slime_name=''):
     """Retângulo (x, y, w, h) que o elemento ocupa na tela."""
     kind, s = el['type'], el['scale']
     if kind == 'slime':
         return el['x'], el['y'], ICON * s, ICON * s + 4
-    if kind == 'title':
-        return el['x'], el['y'], el['w'], 14 * s + 4
+    if kind == 'title':  # caixa = altura das maiúsculas da fonte (ver vfont.py)
+        return el['x'], el['y'], el['w'], vfont.cap(vector_font(el), vector_px(el)) + 4
+    if kind == 'artist' and el['font']:
+        return el['x'], el['y'], el['w'], vfont.cap(vector_font(el), vector_px(el)) + 4
+    if kind == 'clock':  # Michroma: largura fixa de "00:00" e, se houver, dos segundos
+        w = vfont.width('mich', 20 * s, '00:00')
+        if el['seconds']:
+            w += 8 + vfont.width('mich', 20 * max(1, s // 2), '00')
+        return el['x'], el['y'], w, vfont.cap('mich', 20 * s)
     if kind == 'artist':
         return el['x'], el['y'], el['w'], 14 * s
     if kind == 'progress':
         return el['x'], el['y'], el['w'], 28
-    if kind == 'clock':
-        return el['x'], el['y'], text_width(5, s), 14 * s
     if kind == 'volume':
         return el['x'], el['y'], text_width(len(SAMPLE_VOLUME), s), 14 * s
     if kind == 'text':
@@ -164,6 +186,8 @@ def clean_element(raw):
     el['main'], el['accent'] = clean_color(raw.get('main')), clean_color(raw.get('accent'))
     el['pixels'] = clean_pixels(raw.get('pixels')) if kind == 'action' else ''
     el['seconds'] = kind == 'clock' and raw.get('seconds') is True
+    el['font'] = _int(raw.get('font'), 0, 0, 2 if kind in ('clock', 'title', 'artist') else 1) if kind in ('title', 'artist', 'clock') else 0  # relógio: 2 = pixel + segundos em Michroma
+    el['dot'] = _int(raw.get('dot'), 0, 0, 15) if kind == 'clock' and el['font'] else _int(raw.get('dot'), 0, 0, 16) if kind == 'eq' else 0  # relógio pixel: lado do ponto (0 = 2 px por escala); equalizador sobre foto: passo das barras (0 = padrão)
     return el
 
 
@@ -191,7 +215,7 @@ def wire(layout, slime_name):
         code = TYPES[el['type']][0]
         a = {'media': MEDIA_KINDS.index(el['kind']), 'action': i}.get(el['type'], el['scale'])
         label = model.ascii_label(label_for(el, slime_name)) if el['type'] in ('text', 'action') else ''
-        b = int(el['seconds']) if el['type'] == 'clock' else el['slime']
+        b = int(el['seconds']) | (el['font'] > 0) << 1 | el['dot'] << 2 | (el['font'] == 2) << 6 if el['type'] == 'clock' else el['font'] if el['type'] in ('title', 'artist') else el['dot'] if el['type'] == 'eq' else el['slime']
         colors = f'{rgb565(el["main"])} {rgb565(el["accent"])} {el["pixels"] or "-"}'
         lines.append(f'L A {code} {el["x"]} {el["y"]} {el["w"]} {el["h"]} {a} {b} {colors} {label}'.rstrip())
     return lines + ['L D']

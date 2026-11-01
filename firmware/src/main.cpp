@@ -26,6 +26,9 @@
 #include <TFT_eSPI.h>
 
 #include "sprites.h"
+#define STB_TRUETYPE_IMPLEMENTATION  // só esta unidade gera a implementação do stb_truetype (domínio público)
+#include "fonts.h"                   // gerado por tools/gen_fonts.py
+#include "stb_truetype.h"
 
 // ---- ajustes de toque (confira com as linhas "TOUCH x y" no monitor serial) ----
 #define TOUCH_SDA 33
@@ -63,7 +66,7 @@ void updateBacklight() {
   ledcWrite(TFT_BL, (uint32_t)blNow * blNow / 255);  // curva quadrática: o olho vê o brilho de forma não linear
 }
 
-TFT_eSprite eqS(&tft), titS(&tft), slS(&tft);
+TFT_eSprite eqS(&tft), titS(&tft), slS(&tft), arS(&tft);
 TAMC_GT911 tp(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, W, H);
 Preferences prefs;
 
@@ -117,7 +120,7 @@ struct El { char t; int16_t x, y, w, h; uint8_t a, b; uint16_t cm, ca; bool hasP
 #define ACC(e) ((e).ca ? (e).ca : K[2])
 El els[MAXEL], pend[MAXEL];
 int nEl = 0, nPend = 0;
-bool eqOk = false, titOk = false, slOk = false;
+bool eqOk = false, titOk = false, slOk = false, arOk = false;
 
 bool dStatic = true, dClock = true, dProg = true, dBtns = true, dVol = true, dArtist = true, dTitle = true;
 
@@ -191,12 +194,17 @@ String clean(String s) {
   for (uint16_t i = 0; i < s.length(); i++) if (s[i] == ' ' || strchr(FONT_CHARS, s[i])) o += s[i];
   return o;
 }
+String plain(const String& s) {  // título/artista: ASCII imprimível com a caixa original (a fonte pixel põe em maiúsculas ao desenhar)
+  String o;
+  for (uint16_t i = 0; i < s.length(); i++) if (s[i] >= 32 && s[i] < 127) o += s[i];
+  return o;
+}
 int textW(const String& s, int sc) { return s.length() ? s.length() * 12 * sc - 2 * sc : 0; }
 
 void txtRaw(TFT_eSPI& g, const String& s, int x, int y, int sc, uint16_t col) {
   int d = 2 * sc;
   for (uint16_t n = 0; n < s.length(); n++) {
-    const char* p = strchr(FONT_CHARS, s[n]);
+    const char* p = strchr(FONT_CHARS, toupper(s[n]));
     if (!p || s[n] == ' ') continue;
     const uint8_t* gl = FONT[p - FONT_CHARS];
     for (int r = 0; r < 7; r++)
@@ -209,6 +217,82 @@ void txt(TFT_eSPI& g, const String& s, int x, int y, int sc, uint16_t col) {
   if (ph) txtRaw(g, s, x + sc, y + sc, sc, 0);  // sombra única e sólida atrás do texto, só sobre foto
   txtRaw(g, s, x, y, sc, col);
 }
+
+// ---- texto vetorial (relógio e título): Michroma e Exo 2 rasterizadas pelo stb_truetype, com cache de glifos ----
+enum { F_MICH, F_EXO, F_GARA };
+enum { VG_MAX = 96 };
+stbtt_fontinfo vfont[3];
+struct VGlyph { uint8_t f; uint16_t px, cp; int w, h, xo, yo, adv; uint8_t* bmp; };
+VGlyph vg[VG_MAX];
+int nVg = 0;
+
+void vfontInit() {
+  stbtt_InitFont(&vfont[F_MICH], FONT_MICH, stbtt_GetFontOffsetForIndex(FONT_MICH, 0));
+  stbtt_InitFont(&vfont[F_EXO], FONT_EXO, stbtt_GetFontOffsetForIndex(FONT_EXO, 0));
+  stbtt_InitFont(&vfont[F_GARA], FONT_GARA, stbtt_GetFontOffsetForIndex(FONT_GARA, 0));
+}
+
+// glifo rasterizado no tamanho `px` (em); cache cheio = esvazia tudo e recomeça (nunca perde uma letra)
+const VGlyph* vglyph(uint8_t f, uint16_t px, uint16_t cp) {
+  for (int i = 0; i < nVg; i++)
+    if (vg[i].f == f && vg[i].px == px && vg[i].cp == cp) return &vg[i];
+  if (nVg == VG_MAX) {
+    for (int i = 0; i < nVg; i++) stbtt_FreeBitmap(vg[i].bmp, nullptr);
+    nVg = 0;
+  }
+  VGlyph& g = vg[nVg++];
+  stbtt_fontinfo& fi = vfont[f];
+  float sc = stbtt_ScaleForMappingEmToPixels(&fi, px);
+  int adv, lsb;
+  stbtt_GetCodepointHMetrics(&fi, cp, &adv, &lsb);
+  g.f = f; g.px = px; g.cp = cp; g.adv = round(adv * sc);
+  g.bmp = stbtt_GetCodepointBitmap(&fi, 0, sc, cp, &g.w, &g.h, &g.xo, &g.yo);
+  return &g;
+}
+
+// altura das maiúsculas: o y do texto é o topo do "H" (igual ao texto pixel), a linha de base fica em y + cap
+int vCap(uint8_t f, uint16_t px) {
+  int x0, y0, x1, y1;
+  stbtt_GetCodepointBox(&vfont[f], 'H', &x0, &y0, &x1, &y1);
+  return round(y1 * stbtt_ScaleForMappingEmToPixels(&vfont[f], px));
+}
+
+int vTextW(uint8_t f, uint16_t px, const String& s) {
+  int w = 0;
+  for (uint16_t n = 0; n < s.length(); n++) {
+    const VGlyph* g = vglyph(f, px, s[n]);
+    if (g) w += g->adv;
+  }
+  return w;
+}
+
+void vtextRaw(TFT_eSPI& g, uint8_t f, uint16_t px, const String& s, int x, int y, uint16_t col) {
+  int base = y + vCap(f, px);
+  for (uint16_t n = 0; n < s.length(); n++) {
+    const VGlyph* gl = vglyph(f, px, s[n]);
+    if (!gl) continue;
+    for (int r = 0; r < gl->h; r++) {  // desenha só os trechos >= 50% de cobertura (1 bit, sem mistura de cor)
+      int c = 0;
+      while (c < gl->w) {
+        if (gl->bmp[r * gl->w + c] < 128) { c++; continue; }
+        int start = c;
+        while (c < gl->w && gl->bmp[r * gl->w + c] >= 128) c++;
+        g.fillRect(x + gl->xo + start, base + gl->yo + r, c - start, 1, col);
+      }
+    }
+    x += gl->adv;
+  }
+}
+
+void vtext(TFT_eSPI& g, uint8_t f, uint16_t px, const String& s, int x, int y, uint16_t col) {
+  if (ph) vtextRaw(g, f, px, s, x + px / 20, y + px / 20, 0);  // sombra sólida, como o texto pixel sobre foto
+  vtextRaw(g, f, px, s, x, y, col);
+}
+
+// título e artista: b=0 Exo 2 (20 px por escala); b=1 EB Garamond (título 15 px, artista 12 px por escala)
+uint8_t vFont(const El& e) { return e.b == 1 ? F_GARA : F_EXO; }  // b: 0 Exo 20, 1 Garamond, 2 Exo 16 (só título)
+uint8_t aFont(const El& e) { return e.b == 2 ? F_MICH : F_GARA; }  // artista: 1 Garamond, 2 Michroma
+int vPx(const El& e) { return e.b == 2 ? (e.t == 'r' ? 12 : 16) * e.a : e.b ? (e.t == 'r' ? 12 : 15) * e.a : 20 * e.a; }
 
 void icon(TFT_eSPI& g, const char* const* m, int rows, int cols, int cx, int cy, uint16_t col, bool mirror = false) {
   int x0 = ((cx - cols * 4 / 2) / 2) * 2, y0 = ((cy - rows * 4 / 2) / 2) * 2;
@@ -228,20 +312,54 @@ void drawStaticTexts() {
     if (els[i].t == 'x') txt(tft, String(els[i].label), els[i].x, els[i].y, els[i].a, ACC(els[i]));
 }
 
+// relógio pixel: dígitos 5x7 de ponto d (avanço 6d), dois pontos com avanço 4d; sobre foto, sombra sólida meio ponto abaixo
+void bigClockRaw(TFT_eSPI& g, const String& s, int x, int y, int d, uint16_t col) {
+  for (uint16_t n = 0; n < s.length(); n++) {
+    if (s[n] == ':') { g.fillRect(x + d, y + 2 * d, d, d, col); g.fillRect(x + d, y + 4 * d, d, d, col); x += 4 * d; continue; }
+    const char* p = strchr(FONT_CHARS, s[n]);
+    if (p) {
+      const uint8_t* gl = FONT[p - FONT_CHARS];
+      for (int r = 0; r < 7; r++)
+        for (int c = 0; c < 5; c++)
+          if (gl[r] >> (4 - c) & 1) g.fillRect(x + c * d, y + r * d, d, d, col);
+    }
+    x += 6 * d;
+  }
+}
+
+void bigClock(TFT_eSPI& g, const String& s, int x, int y, int d, uint16_t col) {
+  bigClockRaw(g, s, x, y, d, col);
+}
+
 void drawClock() {
   for (int i = 0; i < nEl; i++)
     if (els[i].t == 'c') {
       const El& e = els[i];
-      String hm = String(clockTxt).substring(0, 5), sec = e.b && strlen(clockTxt) >= 8 ? String(clockTxt + 6) : "";
-      int sb = max(1, e.a / 2), w = textW("00:00", e.a) + (sec.length() ? 8 + textW(sec, sb) : 0), h = 14 * e.a;
+      bool pix = e.b & 2;  // estilo pixel: fonte 5x7 grande, segundos pequenos
+      String hm = String(clockTxt).substring(0, 5), sec = e.b & 1 && strlen(clockTxt) >= 8 ? String(clockTxt + 6) : "";
+      int px = 20 * e.a, sb = pix ? 1 : max(1, e.a / 2), spx = 20 * sb;
+      int d = (e.b >> 2 & 15) ? e.b >> 2 & 15 : 2 * e.a, gap = pix && d >= 10 ? 10 : 8;  // pixel: d = lado do ponto (igual ao mockup), "00:00" = 27 pontos
+      int hw = pix ? 27 * d : vTextW(F_MICH, px, "00:00");  // largura fixa: os segundos não andam quando o dígito muda
+      int hh = pix ? 7 * d : vCap(F_MICH, px) + px / 20;
+      bool vsec = pix && (e.b & 64);  // segundos em Michroma (2d+2 px) em vez da fonte pixel
+      if (vsec) spx = 2 * d + 2;
+      int sw = vsec ? vTextW(F_MICH, spx, sec) : pix ? textW(sec, sb) : vTextW(F_MICH, spx, sec);
+      int w = hw + (sec.length() ? gap + sw : 0), h = hh;
       w = min(w, W - e.x); h = min(h, H - e.y);
       TFT_eSprite s(&tft);
       bool ok = s.createSprite(w, h);
       TFT_eSPI& g = ok ? (TFT_eSPI&)s : tft;
       int ox = ok ? 0 : e.x, oy = ok ? 0 : e.y;
       bg(g, ox, oy, w, h, e.x, e.y);
-      txt(g, hm, ox, oy, e.a, MAIN(e));
-      if (sec.length()) txt(g, sec, ox + textW("00:00", e.a) + 8, oy + h - 14 * sb, sb, MAIN(e));
+      if (pix) {
+        bigClock(g, hm, ox, oy, d, MAIN(e));
+        if (sec.length() && vsec) vtext(g, F_MICH, spx, sec, ox + hw + gap, oy + hh - vCap(F_MICH, spx), ACC(e));
+        else if (sec.length()) txt(g, sec, ox + hw + gap, oy + hh - 14 * sb, sb, ACC(e));
+      } else {
+        vtext(g, F_MICH, px, hm, ox, oy, MAIN(e));
+        if (sec.length())  // segundos na mesma linha de base da hora
+          vtext(g, F_MICH, spx, sec, ox + hw + 8, oy + vCap(F_MICH, px) - vCap(F_MICH, spx), MAIN(e));
+      }
       if (ok) { s.pushSprite(e.x, e.y); s.deleteSprite(); }
     }
 }
@@ -270,26 +388,64 @@ void drawTitle() {
   El* e = find('t');
   if (!e || !titOk) return;
   bg(titS, 0, 0, titS.width(), titS.height(), e->x, e->y);
-  int tw = textW(title, e->a);
+  uint8_t f = vFont(*e);
+  int px = vPx(*e), tw = vTextW(f, px, title);
   int off = tw > e->w ? (millis() / 60) % (tw + 60) : 0;
-  txt(titS, title, -off, 2, e->a, MAIN(*e));
-  if (off) txt(titS, title, -off + tw + 60, 2, e->a, MAIN(*e));
+  vtext(titS, f, px, title, -off, 2, MAIN(*e));
+  if (off) vtext(titS, f, px, title, -off + tw + 60, 2, MAIN(*e));
   titS.pushSprite(e->x, e->y);
+}
+
+String mmss(uint32_t s);
+
+// "0:22 / 3:45" (só sobre foto, na linha do artista, alinhado à direita)
+String pairTime() {
+  if (!dur) return "";
+  String t = mmss(min(pos, dur));
+  t += " / ";
+  t += mmss(dur);
+  return t;
 }
 
 void drawArtist() {
   El* e = find('r');
   if (!e) return;
+  String tm = ph ? pairTime() : "";
+  if (e->b && arOk) {  // Garamond: sprite como o título, a sobra é cortada pela largura
+    bg(arS, 0, 0, arS.width(), arS.height(), e->x, e->y);
+    int tw = vTextW(aFont(*e), vPx(*e), tm);
+    vtext(arS, aFont(*e), vPx(*e), artist, 0, 2, e->b == 2 ? ACC(*e) : MAIN(*e));
+    if (tw) {
+      bg(arS, e->w - tw - 6, 0, tw + 6, arS.height(), e->x + e->w - tw - 6, e->y);
+      vtext(arS, aFont(*e), vPx(*e), tm, e->w - tw, 2, MAIN(*e));
+    }
+    arS.pushSprite(e->x, e->y);
+    return;
+  }
   bg(tft, e->x, e->y, e->w, 14 * e->a, e->x, e->y);
-  String a = artist.substring(0, max(0, (e->w + 2 * e->a) / (12 * e->a)));
+  int tw = textW(tm, e->a);
+  String a = artist.substring(0, max(0, (e->w - (tw ? tw + 12 * e->a : 0) + 2 * e->a) / (12 * e->a)));
   txt(tft, a, e->x, e->y, e->a, ACC(*e));
+  if (tw) txt(tft, tm, e->x + e->w - tw, e->y, e->a, ACC(*e));
 }
 
 void drawEq() {
   El* e = find('e');
   if (!e || !eqOk) return;
   bg(eqS, 0, 0, eqS.width(), eqS.height(), e->x, e->y);
-  int pitch = max(2, e->w / NB), bw = max(1, pitch * 3 / 4), top = e->h - 4;
+  int top = e->h - 4;
+  if (ph) {  // sobre foto: muitas barras finas (escala 1: passo 5, escala 2: passo 8) tiradas das 24 faixas, como o mockup
+    int pitch = e->b ? e->b : e->a >= 2 ? 10 : 5, n = e->w / pitch;  // b = passo próprio (barra = 2/3 do passo)
+    for (int j = 0; j < n; j++) {
+      int k = j * NB / n, v = constrain(eqShown[k] + (int)(j * 7 % 5) - 2, 0, 9);
+      int h = max(3, v * top / 9);
+      uint16_t col = j % 5 == 2 ? ACC(*e) : j % 2 ? mix(MAIN(*e), 0, 120) : MAIN(*e);
+      eqS.fillRect(j * pitch, e->h - h, e->b ? pitch * 2 / 3 : pitch - (e->a >= 2 ? 3 : 2), h, col);
+    }
+    eqS.pushSprite(e->x, e->y);
+    return;
+  }
+  int pitch = max(2, e->w / NB), bw = max(1, pitch * 3 / 4);
   for (int j = 0; j < NB; j++) {
     int h = max(3, eqShown[j] * top / 9);
     uint16_t col = j % 2 ? ACC(*e) : MAIN(*e);
@@ -299,6 +455,7 @@ void drawEq() {
   eqS.pushSprite(e->x, e->y);
 }
 
+// m:ss, ou h:mm:ss a partir de 1 hora
 // m:ss, ou h:mm:ss a partir de 1 hora
 String mmss(uint32_t s) {
   char b[14];
@@ -311,20 +468,23 @@ String mmss(uint32_t s) {
 void drawProgOn(TFT_eSPI& g, int x, int y, int w, int sx, int sy) {
   El* e = find('p');
   uint32_t shown = min(pos, dur);
-  bg(g, x, y, w, 28, sx, sy);
-  if (ph) {  // sobre foto: linha fina com marcador, e o tempo que falta
+  bg(g, x, y, w, ph ? 8 : 28, sx, sy);
+  if (ph && e->a == 2) {  // sobre foto, em segmentos: 60 blocos de 4 px que vão acendendo (vazios vêm do fundo)
+    int n = 60, lit = dur ? (int)(n * shown / dur) : 0;
+    for (int i = 0; i < lit; i++) g.fillRect(x + i * w / n, y, 4, 8, ACC(*e));
+  } else if (ph) {  // sobre foto: linha fina com marcador, e o tempo que falta
     int fill = dur ? (int)((uint64_t)w * shown / dur) : 0;
-    g.fillRect(x, y + 3, w, 2, mix(0, 0xFFFF, 110));
-    g.fillRect(x, y + 3, fill, 2, ACC(*e));
-    g.fillRect(min(x + fill, x + w - 6), y, 6, 8, ACC(*e));
+    g.fillRect(x, y + 3, w, 1, MAIN(*e));
+    g.fillRect(x, y + 2, fill, 3, ACC(*e));
   } else {
     g.fillRect(x, y, w, 8, ACC(*e));
     g.fillRect(x + 2, y + 2, w - 4, 4, K[1]);
     if (dur) g.fillRect(x + 2, y + 2, ((int)((w - 4) * (uint64_t)shown / dur) / 2) * 2, 4, ACC(*e));
     g.fillRect(x, y + 14, w, 14, K[0]);
   }
+  if (ph) return;  // sobre foto o tempo vai na linha do artista
   txt(g, mmss(pos), x, y + 14, 1, MAIN(*e));
-  String r = dur ? (ph ? "-" + mmss(dur - shown) : mmss(dur)) : "";
+  String r = dur ? mmss(dur) : "";
   txt(g, r, x + w - textW(r, 1), y + 14, 1, MAIN(*e));
 }
 
@@ -332,12 +492,32 @@ void drawProg() {
   El* e = find('p');
   if (!e) return;
   TFT_eSprite s(&tft);
-  if (s.createSprite(e->w, 28)) {
+  if (s.createSprite(e->w, ph ? 8 : 28)) {
     drawProgOn(s, 0, 0, e->w, e->x, e->y);
     s.pushSprite(e->x, e->y);
     s.deleteSprite();
   } else {
     drawProgOn(tft, e->x, e->y, e->w, e->x, e->y);
+  }
+  if (ph) drawArtist();
+}
+
+// triângulo 9x11 apontando para a direita (d>0) ou esquerda, com a ponta/base no centro x0
+void glyphTri(TFT_eSPI& g, int x0, int cy, int d, uint16_t col) {
+  for (int c = 0; c < 9; c++) {
+    int half = 5 * (9 - c) / 9;
+    g.fillRect(d > 0 ? x0 + c - 4 : x0 - c + 4, cy - half, 1, 2 * half + 1, col);
+  }
+}
+
+// "VOL" em negrito, 5x7 por letra com 1 px de espaço (largura 18)
+void glyphVol(TFT_eSPI& g, int x, int y, uint16_t col) {
+  const char* t = "VOL";
+  for (int n = 0; n < 3; n++) {
+    const uint8_t* gl = FONT[strchr(FONT_CHARS, t[n]) - FONT_CHARS];
+    for (int r = 0; r < 7; r++)
+      for (int c = 0; c < 5; c++)
+        if (gl[r] >> (4 - c) & 1) g.fillRect(x + n * 6 + c, y + r - 1, 2, 1, col);
   }
 }
 
@@ -348,16 +528,20 @@ void drawBtnOn(TFT_eSPI& g, int i, int ox, int oy) {
   uint16_t A = ACC(b), M = MAIN(b);
   int y = oy + (press ? 4 : 0), x = ox, w = b.w, h = b.h - 8;  // 8 px reservados para sombra e afundar
   bg(g, x, oy, w, b.h, b.x, b.y);
-  if (ph && b.t == 'm') {  // sobre foto: só o ícone, com sombra
-    int cx = x + w / 2 + (press ? 2 : 0), cy = oy + b.h / 2 + (press ? 2 : 0);
-    for (int pass = 0; pass < 2; pass++) {
-      uint16_t c = pass ? A : 0;
-      int o = pass ? 0 : 2;
-      if (b.a == 0) icon(g, IC_PREV, 9, 9, cx + o, cy + o, c);
-      else if (b.a == 2) icon(g, IC_PREV, 9, 9, cx + o, cy + o, c, true);
-      else if (b.a == 1) { if (playing) icon(g, IC_PAUSE, 7, 8, cx + o, cy + o, c); else icon(g, IC_PLAY, 7, 8, cx + o, cy + o, c); }
-      else icon(g, IC_VOL, 9, 11, cx + o, cy + o, c);
+  if (ph && b.t == 'm') {  // sobre foto: glifo pequeno (◀◀ ▶/❚❚ ▶▶ VOL) no centro da caixa que já vem da foto
+    if (b.cm) {  // contorno de 2 px na cor própria (cobre o da foto, que não é do tema)
+      g.fillRect(x, oy, w, 2, b.cm); g.fillRect(x, oy + b.h - 2, w, 2, b.cm);
+      g.fillRect(x, oy, 2, b.h, b.cm); g.fillRect(x + w - 2, oy, 2, b.h, b.cm);
     }
+    int cx = x + w / 2 + (press ? 1 : 0), cy = oy + b.h / 2 + (press ? 1 : 0);
+    if (b.a == 0 || b.a == 2) {
+      int d = b.a == 0 ? -1 : 1;
+      glyphTri(g, cx - 5, cy, d, A);
+      glyphTri(g, cx + 4, cy, d, A);
+    } else if (b.a == 1) {
+      if (playing) { g.fillRect(cx - 5, cy - 6, 4, 12, A); g.fillRect(cx + 1, cy - 6, 4, 12, A); }
+      else glyphTri(g, cx - 4, cy, 1, A);
+    } else glyphVol(g, cx - 9, cy - 3, A);
     return;
   }
   if (!ph) g.fillRect(x, oy + h, w, 6, mix(K[0], 0, 120));
@@ -427,9 +611,10 @@ void applyLayout() {
   memcpy(els, pend, sizeof(El) * nPend);
   nEl = nPend;
   pressed = -1;
-  El *e = find('e'), *t = find('t'), *s = find('s');
+  El *e = find('e'), *t = find('t'), *s = find('s'), *r = find('r');
   makeSprite(eqS, eqOk, e, e ? e->w : 0, e ? e->h : 0);
-  makeSprite(titS, titOk, t, t ? t->w : 0, t ? 14 * t->a + 4 : 0);
+  makeSprite(titS, titOk, t, t ? t->w : 0, t ? vCap(vFont(*t), vPx(*t)) + 4 : 0);
+  makeSprite(arS, arOk, r && r->b, r ? r->w : 0, r ? vCap(aFont(*r), vPx(*r)) + 4 : 0);
   makeSprite(slS, slOk, s, s ? ICON * s->a : 0, s ? ICON * s->a + 4 : 0);
   dirtyAll();
 }
@@ -463,11 +648,12 @@ void addElement(const String& a) {  // "<tipo> x y w h a b corTexto corDestaque 
   label.substring(0, 24).toCharArray(e.label, sizeof e.label);
   switch (e.t) {
     case 's': e.a = constrain(e.a, 1, 5); break;
-    case 't': e.a = constrain(e.a, 1, 3); break;
-    case 'c': e.a = constrain(e.a, 1, 5); break;
-    case 'r': case 'v': e.a = constrain(e.a, 1, 2); break;
+    case 't': e.a = constrain(e.a, 1, 3); e.b = min<int>(e.b, 2); break;
+    case 'c': e.a = constrain(e.a, 1, 5); e.b = min<int>(e.b, 127); break;
+    case 'r': e.a = constrain(e.a, 1, 2); e.b = min<int>(e.b, 2); break;
+    case 'v': e.a = constrain(e.a, 1, 2); break;
     case 'x': e.a = constrain(e.a, 1, 3); break;
-    case 'e': e.h = min<int>(e.h, 20000 / e.w); break;
+    case 'e': e.a = constrain(e.a, 1, 2); e.b = e.b > 16 ? 0 : e.b; e.h = min<int>(e.h, 20000 / e.w); break;
     case 'm': e.a = min<int>(e.a, 3); e.h = max<int>(e.h, 20); break;
     case 'a': e.h = max<int>(e.h, 20); break;
   }
@@ -536,14 +722,14 @@ void uploadBytes() {
 
 void handleLine(String l) {
   l.trim();
-  if (l.length() < 2) return;
+  if (l.isEmpty()) return;
   lastRx = millis();
   char cmd = l[0];
-  String a = l.substring(2);
+  String a = l.length() > 2 ? l.substring(2) : "";
   if (cmd == 'L' && a.length()) handleLayout(a);
   else if (cmd == 'S') setSlime(a.toInt());
   else if (cmd == 'K') setColors(a);
-  else if (cmd == '?') Serial.printf("ST bl=%d off=%d ph=%d slot=%d nEl=%d heap=%u\n", blNow, screenOff(), ph != nullptr, photoSlot, nEl, (unsigned)ESP.getFreeHeap());
+  else if (cmd == '?') Serial.printf("ST bl=%d off=%d ph=%d slot=%d nEl=%d heap=%u max=%u\n", blNow, screenOff(), ph != nullptr, photoSlot, nEl, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
   else if (cmd == 'G') setPhoto(constrain(a.toInt(), -1, SLOTS - 1));
   else if (cmd == 'U') startUpload(a);
   else if (cmd == 'D') blGoal = constrain(a.toInt(), 20, 255);
@@ -556,7 +742,7 @@ void handleLine(String l) {
     int p1 = a.indexOf('|'), p2 = a.indexOf('|', p1 + 1), p3 = a.indexOf('|', p2 + 1), p4 = a.indexOf('|', p3 + 1);
     if (p4 < 0) return;
     bool np = a.substring(0, p1).toInt() != 0;
-    String nt = clean(a.substring(p3 + 1, p4)), na = clean(a.substring(p4 + 1));
+    String nt = plain(a.substring(p3 + 1, p4)), na = plain(a.substring(p4 + 1));
     if (nt.isEmpty()) nt = "NOTHING PLAYING";
     if (nt != title) { title = nt; dTitle = true; }
     if (na != artist) { artist = na; dArtist = true; }
@@ -621,7 +807,7 @@ void animate() {
   drawEq();
   drawSlime();
   El* t = find('t');
-  if (t && textW(title, t->a) > t->w) drawTitle();
+  if (t && vTextW(vFont(*t), vPx(*t), title) > t->w) drawTitle();
   static uint8_t twFrame = 0;
   if (slime == TWINKLE_IDX && ++twFrame % 8 == 0) {  // troca de cor ~2x/s: cada troca repinta a tela toda
     twinkleHue = (twinkleHue + 12) % 360;
@@ -653,7 +839,8 @@ void setup() {
   colorTest();
   tp.begin();
   tp.setRotation(ROTATION_NORMAL);
-  eqS.setColorDepth(16); titS.setColorDepth(16); slS.setColorDepth(16);
+  eqS.setColorDepth(16); titS.setColorDepth(16); slS.setColorDepth(16); arS.setColorDepth(16);
+  vfontInit();
   memcpy(K, THEMES[slime], sizeof(K));
   defaultLayout();
   Serial.println("HELLO");

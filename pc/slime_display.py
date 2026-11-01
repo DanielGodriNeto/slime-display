@@ -27,6 +27,7 @@ import deck_model as model
 import deck_ui as ui
 import layout
 import preview
+import themes
 from deck_service import ActionRunner
 from deck_ui import ColorRow
 from layout_editor import LayoutEditor
@@ -71,6 +72,11 @@ class SlimeTab(ttk.Frame):
             self.buttons.append(b)
         self.name = ttk.Label(self, style='Head.TLabel', padding=10)
         self.name.pack()
+        ttk.Label(self, text='Tema da tela (fundo + layout)', style='Head.TLabel').pack(anchor='w')
+        self.theme_box = ttk.Combobox(self, state='readonly', width=34,
+                                      values=[f'{m.KEY}  {m.TITLE}' for m in themes.MODULES])
+        self.theme_box.pack(anchor='w', pady=(2, 10))
+        self.theme_box.bind('<<ComboboxSelected>>', lambda _e: app.choose_theme(self.theme_box.current()))
         box = ttk.Frame(self)
         box.pack(pady=(14, 0))
         ttk.Label(box, text='Cores da tela (valem para tudo; cada item pode ter a sua)', style='Head.TLabel').pack(anchor='w')
@@ -84,6 +90,11 @@ class SlimeTab(ttk.Frame):
         for i, b in enumerate(self.buttons):
             b.configure(bg=ui.THEME['accent'] if i == self.app.cfg['slime'] else ui.THEME['panel'])
         self.name.configure(text=f'{SLIMES[self.app.cfg["slime"]]["name"]} FM')
+        active = [i for i, m in enumerate(themes.MODULES) if m.SLOT == self.app.cfg['photo']]
+        if active:
+            self.theme_box.current(active[0])
+        else:
+            self.theme_box.set('')
         k = preview.theme(self.app.cfg['slime'])  # o "padrão" de cada cor é a do slime escolhido
         for row, default in zip(self.rows, (k[3], k[2])):
             row.default = default
@@ -192,6 +203,13 @@ class App:
         model.save(self.cfg)
         self.resync = True  # reenvia a tela para a placa no próximo ciclo
 
+    def choose_theme(self, index):
+        """Troca foto + layout pelo tema escolhido. A foto tem de estar na placa (ver pc/photo_tool.py)."""
+        themes.apply_theme(self.cfg, themes.MODULES[index].KEY)
+        self.editor.reload()
+        self.slime_tab.show()
+        self.commit()
+
     def run_action(self, el):
         """Botão "Experimentar" do editor."""
         problem = actions.validate(el['action'])
@@ -264,7 +282,8 @@ class App:
     # ---------- placa ----------
     def on_line(self, line):
         """Roda na thread da serial: nada que espere o OK da placa pode ficar aqui."""
-        if line == 'HELLO':
+        if 'HELLO' in line:
+            self.last.clear()
             self.resync = True
         elif line.startswith('B a') and line[3:].isdigit():
             self.runner.on_press(int(line[3:]))
