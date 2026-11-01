@@ -1,0 +1,7 @@
+# Tema de exemplo: slime 0, relogio, musica tocando, equalizador, layout padrao do setup()
+S 0
+T 21:48
+N 1|62|225|Want to Stay at Your House|Rosa Walton
+V 7
+E 345678987654321234567898
+@wait 1000
