@@ -3,12 +3,13 @@
 Usa as mesmas TTFs que vão embutidas na placa (firmware/tools/build). Glifo sem mistura de cor:
 pixel fica cheio ou apagado (limiar de 50%), como o stb_truetype desenha na placa.
 """
+import sys
 from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-FONTS = Path(__file__).resolve().parent.parent / 'firmware' / 'tools' / 'build'
+FONTS = Path(getattr(sys, '_MEIPASS', '')) / 'fonts' if hasattr(sys, '_MEIPASS') else Path(__file__).resolve().parent.parent / 'firmware' / 'tools' / 'build'  # no .exe as TTFs vão em fonts/
 FILES = {'mich': 'Michroma-ascii.ttf', 'exo': 'Exo2-ascii.ttf', 'gara': 'EBGaramond-ascii.ttf'}  # relógio, título, Death Note
 
 
