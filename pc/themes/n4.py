@@ -9,7 +9,7 @@ def build():
     keys = [element('media', x=27 + 106 * i, y=227, w=100, h=34, kind=k, main='#6a5648',
                     accent=RED if k == 'play' else CREAM)
             for i, k in enumerate(MEDIA_KINDS)]
-    return [element('clock', x=28, y=70, scale=5, font=1, dot=11, main=CREAM, accent=RED, seconds=True),
+    return [element('clock', x=22, y=75, scale=4, main=CREAM, accent=RED, seconds=True),
             element('title', x=28, y=171, w=424, scale=1, main=CREAM, font=1),
             element('artist', x=28, y=192, w=424, main=MUTED, font=1),
             element('progress', x=28, y=207, w=424, main=TRACK, accent=RED),
