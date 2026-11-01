@@ -100,6 +100,18 @@ def rgb565(px):
     return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 
 
+def override_image(i):
+    """tools/overrides/NN.png troca o sprite i (recortado e reduzido para caber em 20x20, alfa binário)."""
+    f = ROOT / 'tools' / 'overrides' / f'{i:02d}.png'
+    if not f.exists():
+        return None
+    img = Image.open(f).convert('RGBA')
+    img = img.crop(img.getbbox())
+    img.thumbnail((20, 20), Image.LANCZOS)
+    img.putalpha(img.getchannel('A').point(lambda a: 255 if a >= 128 else 0))
+    return img
+
+
 def main():
     colors, specs = parse_source()
     assert len(specs) == len(NAMES), (len(specs), len(NAMES))
@@ -108,7 +120,7 @@ def main():
               f'#define N_SLIMES {len(NAMES)}', f'#define TWINKLE_IDX {TWINKLE}', f'#define SPR_TRANSP 0x{TRANSP:04X}', '']
     themes, meta, sprite_names = [], [], []
     for i, (name, spec) in enumerate(zip(NAMES, specs)):
-        img = add_outline(build_image(spec, colors))
+        img = override_image(i) or add_outline(build_image(spec, colors))
         img.save(ROOT / 'pc' / 'icons' / f'{i:02d}.png')
         th = theme(name, dominant_hue(spec, colors))
         themes.append('  {' + ', '.join(f'0x{c[0]:04X}' for c in th) + '}')
