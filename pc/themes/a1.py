@@ -2,7 +2,7 @@
 from layout import MEDIA_KINDS, element
 
 KEY, TITLE, SLOT = 'A1', 'Arasaka terminal', 4
-LIGHT, RED, DIM = '#f2f2f2', '#e01b24', '#9a4a4e'
+LIGHT, RED, DIM = '#f2f2f2', '#e01b24', '#d06a70'
 
 
 def build():

@@ -2,7 +2,7 @@
 from layout import MEDIA_KINDS, element
 
 KEY, TITLE, SLOT = 'A2', 'Arasaka vermelho', 5
-LIGHT, RED, BLACK, TRACK = '#f2f2f2', '#e01b24', '#0a0a0a', '#3a0407'
+LIGHT, RED, BLACK, TRACK = '#f2f2f2', '#e01b24', '#0a0a0a', '#8a1a22'
 
 
 def build():

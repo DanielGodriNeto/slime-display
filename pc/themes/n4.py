@@ -2,14 +2,14 @@
 from layout import MEDIA_KINDS, element
 
 KEY, TITLE, SLOT = 'N4', 'Light / Kira', 3
-CREAM, RED, DIM, MUTED, TRACK = '#efe3cf', '#c0261f', '#8a6a58', '#9a8a78', '#2a1612'
+CREAM, RED, DIM, MUTED, TRACK = '#efe3cf', '#e8453c', '#c0a088', '#d0c0aa', '#6a3a30'
 
 
 def build():
-    keys = [element('media', x=27 + 106 * i, y=227, w=100, h=34, kind=k, main='#6a5648',
+    keys = [element('media', x=27 + 106 * i, y=227, w=100, h=34, kind=k, main='#a88c78',
                     accent=RED if k == 'play' else CREAM)
             for i, k in enumerate(MEDIA_KINDS)]
-    return [element('clock', x=22, y=75, scale=4, main=CREAM, accent=RED, seconds=True),
+    return [element('clock', x=16, y=75, scale=4, main=CREAM, accent=RED, seconds=True),
             element('title', x=28, y=171, w=424, scale=1, main=CREAM, font=1),
             element('artist', x=28, y=192, w=424, main=MUTED, font=1),
             element('progress', x=28, y=207, w=424, main=TRACK, accent=RED),

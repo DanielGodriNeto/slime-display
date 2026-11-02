@@ -2,11 +2,11 @@
 from layout import MEDIA_KINDS, element
 
 KEY, TITLE, SLOT = 'N1b', 'Capa do caderno vermelha', 1
-SAND, MUTED, GREY, RED, TRACK = '#cfcfcf', '#d8d8d8', '#8a8a8a', '#b3202a', '#7a7a7a'
+SAND, MUTED, GREY, RED, TRACK = '#cfcfcf', '#d8d8d8', '#c4c4c4', '#e0343f', '#9a9a9a'
 
 
 def build():
-    keys = [element('media', x=40 + 104 * i, y=225, w=94, h=31, kind=k, main='#484848',
+    keys = [element('media', x=40 + 104 * i, y=225, w=94, h=31, kind=k, main='#9a9a9a',
                     accent=RED if k == 'play' else SAND)
             for i, k in enumerate(MEDIA_KINDS)]
     return [element('clock', x=35, y=90, scale=4, main=SAND, accent=RED, seconds=True),

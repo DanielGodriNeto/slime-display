@@ -2,7 +2,7 @@
 from layout import MEDIA_KINDS, element
 
 KEY, TITLE, SLOT = 'N3', 'L', 2
-WHITE, GREY, SECONDS, TRACK, OUTLINE = '#ffffff', '#8a8a8a', '#7a7a7a', '#333333', '#454545'
+WHITE, GREY, SECONDS, TRACK, OUTLINE = '#ffffff', '#d0d0d0', '#c0c0c0', '#808080', '#9a9a9a'
 
 
 def build():
