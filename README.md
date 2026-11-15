@@ -1,5 +1,7 @@
 # Slime Display
 
+![Simulação da tela e do app (mockup.html)](docs/mockup.png)
+
 Display de música estilo Slime Rancher para a CYD ESP32-3248S035C (3.5", 480×320). O app do Windows escolhe o slime (28 temas) e manda música, equalizador, volume e hora pela USB, e a tela é **uma só, toda montada por você**: slime, nome da música, tempo, relógio, botões... o que não quiser, você tira.
 
 ## Instalar em outro PC (o jeito fácil)
