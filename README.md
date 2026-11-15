@@ -12,7 +12,7 @@ A placa guarda o firmware na própria memória: se ela já foi gravada, basta li
 O Windows pode avisar "app não reconhecido" (o .exe não é assinado): *Mais informações > Executar assim mesmo*.
 Slime e tela escolhidos ficam no PC em `%APPDATA%\slime-display`, então o outro PC começa com a tela padrão.
 
-Sem o .exe: `instalar.bat` instala o Python e as bibliotecas e cria um atalho. Para gerar o .exe: `toolsuild_exe.bat`.
+Sem o .exe: `instalar.bat` instala o Python e as bibliotecas e cria um atalho. Para gerar o .exe: `tools\build_exe.bat`.
 
 ## Placa (firmware)
 1. Instale o PlatformIO (extensão do VS Code ou `pip install platformio`).
